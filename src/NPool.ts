@@ -1,3 +1,5 @@
+import { getFilterLimit } from 'npm:nostr-tools@^2.3.1';
+
 import { NostrEvent } from '../interfaces/NostrEvent.ts';
 import { NostrFilter } from '../interfaces/NostrFilter.ts';
 import { NostrRelayCLOSED, NostrRelayEOSE, NostrRelayEVENT } from '../interfaces/NostrRelayMsg.ts';
@@ -127,12 +129,21 @@ export class NPool implements NRelay {
   async query(filters: NostrFilter[], opts?: { signal?: AbortSignal }): Promise<NostrEvent[]> {
     const events = new NSet();
 
-    for (const url of await this.reqRelays(filters)) {
-      this
-        .relay(url)
-        .query(filters, opts)
-        .then((results) => results.forEach((event) => events.add(event)))
-        .catch(() => {});
+    const limit = filters.reduce((result, filter) => result + getFilterLimit(filter), 0);
+    if (limit === 0) return [];
+
+    try {
+      for await (const msg of this.req(filters, opts)) {
+        if (msg[0] === 'EOSE') break;
+        if (msg[0] === 'EVENT') events.add(msg[2]);
+        if (msg[0] === 'CLOSED') throw new Error('Subscription closed');
+
+        if (events.size >= limit) {
+          break;
+        }
+      }
+    } catch (_) {
+      // Skip errors and return partial events.
     }
 
     return [...events];
