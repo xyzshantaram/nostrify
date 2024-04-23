@@ -6,11 +6,11 @@ import { NPolicy } from '../../interfaces/NPolicy.ts';
 export class AnyPolicy implements NPolicy {
   constructor(private policies: NPolicy[]) {}
 
-  async call(event: NostrEvent): Promise<NostrRelayOK> {
+  async call(event: NostrEvent, signal?: AbortSignal): Promise<NostrRelayOK> {
     let result: NostrRelayOK = ['OK', event.id, false, 'blocked: no policy passed'];
 
     for (const policy of this.policies) {
-      result = await policy.call(event);
+      result = await policy.call(event, signal);
 
       const ok = result[2];
       if (ok) {
