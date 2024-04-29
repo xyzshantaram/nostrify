@@ -14,7 +14,6 @@ import {
 } from '../interfaces/NostrRelayMsg.ts';
 import { NRelay } from '../interfaces/NRelay.ts';
 
-import { Machina } from './utils/Machina.ts';
 import { NSchema as n } from './NSchema.ts';
 import { NSet } from './NSet.ts';
 
@@ -173,17 +172,37 @@ export class NRelay1 implements NRelay {
   private async *on<K extends keyof EventMap>(key: K, signal?: AbortSignal): AsyncIterable<EventMap[K]> {
     if (signal?.aborted) throw this.abortError();
 
-    const machina = new Machina<EventMap[K]>(signal);
-    const onMsg = (e: Event) => machina.push((e as CustomEvent<EventMap[K]>).detail);
+    let controller: ReadableStreamDefaultController<EventMap[K]> | undefined;
+
+    const stream = new ReadableStream<EventMap[K]>({
+      start(c) {
+        controller = c;
+      },
+    });
+
+    const onMsg = (e: Event) => {
+      controller?.enqueue((e as CustomEvent<EventMap[K]>).detail);
+    };
+
+    const onAbort = () => {
+      stream.cancel();
+      cleanup();
+    };
+
+    const cleanup = () => {
+      this.ee.removeEventListener(key, onMsg);
+      signal?.removeEventListener('abort', onAbort);
+    };
 
     this.ee.addEventListener(key, onMsg);
+    signal?.addEventListener('abort', onAbort);
 
     try {
-      for await (const msg of machina) {
+      for await (const msg of stream.values()) {
         yield msg;
       }
     } finally {
-      this.ee.removeEventListener(key, onMsg);
+      cleanup();
     }
   }
 

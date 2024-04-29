@@ -5,7 +5,6 @@ import { NostrFilter } from '../interfaces/NostrFilter.ts';
 import { NostrRelayCLOSED, NostrRelayEOSE, NostrRelayEVENT } from '../interfaces/NostrRelayMsg.ts';
 import { NRelay } from '../interfaces/NRelay.ts';
 
-import { Machina } from './utils/Machina.ts';
 import { NKinds } from './NKinds.ts';
 import { NSet } from './NSet.ts';
 
@@ -74,11 +73,19 @@ export class NPool implements NRelay {
     filters: NostrFilter[],
     opts?: { signal?: AbortSignal },
   ): AsyncIterable<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED> {
-    const controller = new AbortController();
-    const signal = opts?.signal ? AbortSignal.any([opts.signal, controller.signal]) : controller.signal;
-
     const relayUrls = new Set(await this.reqRelays(filters));
-    const machina = new Machina<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED>(signal);
+
+    const abortController = new AbortController();
+    const signal = opts?.signal ? AbortSignal.any([opts.signal, abortController.signal]) : abortController.signal;
+
+    let streamController:
+      | ReadableStreamDefaultController<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED>
+      | undefined;
+    const stream = new ReadableStream<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED>({
+      start: (c) => {
+        streamController = c;
+      },
+    });
 
     const eoses = new Set<WebSocket['url']>();
     const closes = new Set<WebSocket['url']>();
@@ -90,28 +97,28 @@ export class NPool implements NRelay {
           if (msg[0] === 'EOSE') {
             eoses.add(url);
             if (eoses.size === relayUrls.size) {
-              machina.push(msg);
+              streamController?.enqueue(msg);
             }
           }
           if (msg[0] === 'CLOSED') {
             closes.add(url);
             if (closes.size === relayUrls.size) {
-              machina.push(msg);
+              streamController?.enqueue(msg);
             }
           }
           if (msg[0] === 'EVENT') {
-            machina.push(msg);
+            streamController?.enqueue(msg);
           }
         }
       })().catch(() => {});
     }
 
     try {
-      for await (const msg of machina) {
+      for await (const msg of stream.values()) {
         yield msg;
       }
     } finally {
-      controller.abort();
+      abortController.abort();
     }
   }
 

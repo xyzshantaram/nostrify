@@ -4,7 +4,6 @@ import { NostrEvent } from '../../interfaces/NostrEvent.ts';
 import { NostrFilter } from '../../interfaces/NostrFilter.ts';
 import { NostrRelayCLOSED, NostrRelayEOSE, NostrRelayEVENT } from '../../interfaces/NostrRelayMsg.ts';
 import { NRelay } from '../../interfaces/NRelay.ts';
-import { Machina } from '../../src/utils/Machina.ts';
 
 /**
  * NDK storage adapter.
@@ -29,11 +28,24 @@ export class NDKStore implements NRelay {
     if (opts.signal?.aborted) throw new DOMException('The signal has been aborted', 'AbortError');
 
     const subId = crypto.randomUUID();
-    const machina = new Machina<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED>(opts.signal);
     const sub = this.ndk.subscribe(filters, { closeOnEose: true, subId });
+
+    const stream = new ReadableStream<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED>({
+      start(controller) {
+        sub.on('event', (event: NDKEvent) => {
+          controller.enqueue(['EVENT', subId, event.rawEvent() as NostrEvent]);
+        });
+
+        sub.on('eose', () => {
+          controller.enqueue(['EOSE', subId]);
+          controller.close();
+        });
+      },
+    });
 
     const abort = () => {
       sub.stop();
+      stream.cancel();
       cleanup();
     };
 
@@ -44,16 +56,8 @@ export class NDKStore implements NRelay {
 
     opts.signal?.addEventListener('abort', abort);
 
-    sub.on('event', (event: NDKEvent) => {
-      machina.push(['EVENT', subId, event.rawEvent() as NostrEvent]);
-    });
-
-    sub.on('eose', () => {
-      machina.push(['EOSE', subId]);
-    });
-
     try {
-      for await (const msg of machina) {
+      for await (const msg of stream.values()) {
         yield msg;
       }
     } finally {
