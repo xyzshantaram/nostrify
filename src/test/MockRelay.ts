@@ -7,18 +7,20 @@ import { NostrFilter } from '../../interfaces/NostrFilter.ts';
 import { NostrRelayCLOSED, NostrRelayCOUNT, NostrRelayEOSE, NostrRelayEVENT } from '../../interfaces/NostrRelayMsg.ts';
 import { NRelay } from '../../interfaces/NRelay.ts';
 
-import { Machina } from '../utils/Machina.ts';
 import { NSet } from '../NSet.ts';
 
 /** Mock relay for testing. */
 export class MockRelay extends NSet implements NRelay {
-  private subs = new Map<string, { filters: NostrFilter[]; machina: Machina<NostrEvent> }>();
+  private subs = new Map<string, { filters: NostrFilter[]; controller: ReadableStreamDefaultController<NostrEvent> }>();
 
   async *req(filters: NostrFilter[]): AsyncIterable<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED> {
     const uuid = crypto.randomUUID();
-    const machina = new Machina<NostrEvent>();
 
-    this.subs.set(uuid, { filters, machina });
+    const stream = new ReadableStream<NostrEvent>({
+      start: (controller) => {
+        this.subs.set(uuid, { filters, controller });
+      },
+    });
 
     try {
       for (const event of await this.query(filters)) {
@@ -27,7 +29,7 @@ export class MockRelay extends NSet implements NRelay {
 
       yield ['EOSE', uuid];
 
-      for await (const event of machina) {
+      for await (const event of stream.values()) {
         yield ['EVENT', uuid, event];
       }
     } finally {
@@ -38,9 +40,9 @@ export class MockRelay extends NSet implements NRelay {
   async event(event: NostrEvent): Promise<void> {
     this.add(event);
 
-    for (const { filters, machina } of this.subs.values()) {
+    for (const { filters, controller } of this.subs.values()) {
       if (matchFilters(filters, event)) {
-        machina.push(event);
+        controller.enqueue(event);
       }
     }
   }
