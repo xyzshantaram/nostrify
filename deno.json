@@ -40,6 +40,8 @@
     "lru-cache": "npm:lru-cache@^10.2.0",
     "nostr-tools": "npm:nostr-tools@^2.5.0",
     "websocket-ts": "npm:websocket-ts@^2.1.5",
-    "zod": "npm:zod@^3.22.4"
+    "zod": "npm:zod@^3.22.4",
+    "@kv-toolbox": "jsr:@kitsonk/kv-toolbox@0.17.0",
+    "msgpackr": "npm:msgpackr@1.10.1"
   }
 }

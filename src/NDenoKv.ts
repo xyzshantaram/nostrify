@@ -1,6 +1,9 @@
 import { NStore } from '../interfaces/NStore.ts';
 import { NostrEvent } from '../interfaces/NostrEvent.ts';
 import { NostrFilter } from '../interfaces/NostrFilter.ts';
+import { batchedAtomic } from '@kv-toolbox/batched_atomic';
+import { pack, unpack } from 'msgpackr';
+import { getAsBlob } from '@kv-toolbox/blob';
 
 import { NKinds } from './NKinds.ts';
 
@@ -46,23 +49,19 @@ export class NDenoKv implements NStore {
       this.replaceEvents(event),
     ]);
 
-    await Promise.all(
-      NDenoKv.insertTags(event).map((key) => this.db.set(key, event.id)),
-    );
+    const txn = batchedAtomic(this.db);
+    NDenoKv.getTagsToInsert(event).map((key) => txn.set(key, event.id));
 
-    const txn = this.db.atomic();
-
-    txn.set(Keys.events(event.id), event)
+    txn.setBlob(Keys.events(event.id), pack(event))
       .set(Keys.byKind(event.id, event.created_at, event.kind), true)
       .set(Keys.byPubkey(event.id, event.created_at, event.pubkey), true)
       .set(Keys.byPubkeyAndKind(event.id, event.created_at, event.pubkey, event.kind), true)
       .set(Keys.byTimestamp(event.id, event.created_at), true);
 
-    const res = await txn.commit();
-
-    if (!res.ok) {
-      throw new Error(`There was an error storing event ${event.id}.`);
-    }
+    const results = await txn.commit();
+    results.forEach((res, i) => {
+      if (!res.ok) throw new Error(`Commit batch ${i} failed.`);
+    })
   }
 
   /** Check if an event has been deleted. */
@@ -134,7 +133,7 @@ export class NDenoKv implements NStore {
     }
   }
 
-  private static insertTags(event: NostrEvent): Deno.KvKey[] {
+  private static getTagsToInsert(event: NostrEvent): Deno.KvKey[] {
     const keys: Deno.KvKey[] = [];
 
     event.tags.forEach((tag, i) => {
@@ -289,12 +288,13 @@ export class NDenoKv implements NStore {
     const events: NostrEvent[] = [];
     const CHUNK_SIZE = 10;
     for (let i = 0; i < results.length; i += CHUNK_SIZE) {
-      const chunk = (await this.db.getMany<NostrEvent[]>(
-        results.slice(i, i + CHUNK_SIZE).map((id) => Keys.events(id)),
-      ))
-        .filter((entry) => Boolean(entry.value))
-        .map((entry) => entry.value!);
-      events.push(...chunk);
+      const ids = results.slice(i, i + CHUNK_SIZE)
+        .map(id => Keys.events(id));
+      for (const id of ids) {
+        const blob = await getAsBlob(this.db, id);
+        if (!blob) continue;
+        events.push(unpack(await blob.arrayBuffer()));
+      }
     }
     return events;
   }
@@ -306,27 +306,29 @@ export class NDenoKv implements NStore {
 
   private async removeById(id: string): Promise<void> {
     const evt = await this.getEvtById(id);
-    const txn = this.db.atomic();
     if (!evt) throw new Error(`Attempt to remove an event ${id} that did not exist.`);
-    NDenoKv.insertTags(evt).forEach((k) => txn.delete(k));
 
-    txn.delete(Keys.events(id))
+    const txn = batchedAtomic(this.db);
+    NDenoKv.getTagsToInsert(evt).forEach((k) => txn.delete(k));
+    txn.deleteBlob(Keys.events(id))
       .delete(Keys.byKind(id, evt.created_at, evt.kind))
       .delete(Keys.byPubkey(evt.id, evt.created_at, evt.pubkey))
       .delete(Keys.byPubkeyAndKind(evt.id, evt.created_at, evt.pubkey, evt.kind))
       .delete(Keys.byTimestamp(evt.id, evt.created_at));
 
-    const res = await txn.commit();
-    if (!res.ok) throw new Error('Delete failed!');
+    const results = await txn.commit();
+    results.forEach((res, i) => {
+      if (!res.ok) throw new Error(`Commit batch ${i} failed.`);
+    })
   }
 
   private async getEvtById(id: string): Promise<NostrEvent | null> {
-    const evtMaybe = await this.db.get<NostrEvent>(Keys.events(id));
-    if (evtMaybe.value) {
-      return evtMaybe.value;
-    } else {
-      return null;
+    const evtMaybe = await getAsBlob(this.db, Keys.events(id));
+    if (evtMaybe) {
+      const unpacked = unpack(await evtMaybe.arrayBuffer());
+      return unpacked;
     }
+    return evtMaybe;
   }
 
   async remove(filters: NostrFilter[]): Promise<void> {
