@@ -108,7 +108,6 @@ export class NDatabase implements NStore {
       ]);
       await this.insertEvent(trx, event);
       await Promise.all([
-        this.insertTags(trx, event),
         this.indexSearch(trx, event),
       ]);
     }).catch((error) => {
@@ -141,28 +140,55 @@ export class NDatabase implements NStore {
 
   /** Replace events in NIP-01 replaceable ranges with the same kind and pubkey. */
   protected async replaceEvents(trx: Kysely<NDatabaseSchema>, event: NostrEvent): Promise<void> {
-    if (NKinds.replaceable(event.kind)) {
-      await this.deleteReplaced(
-        trx,
-        event,
-        { kinds: [event.kind], authors: [event.pubkey] },
-        (event, prevEvent) => event.created_at > prevEvent.created_at,
-        'Cannot replace an event with an older event',
-      );
-    }
+    type E = Pick<NostrEvent, 'created_at'>;
+    const replaces = (event: E, prevEvent: E) => event.created_at > prevEvent.created_at;
+    const d = event.tags.find(([tag]) => tag === 'd')?.[1];
 
-    if (NKinds.parameterizedReplaceable(event.kind)) {
-      const d = event.tags.find(([tag]) => tag === 'd')?.[1];
-      if (d) {
-        await this.deleteReplaced(
-          trx,
-          event,
-          { kinds: [event.kind], authors: [event.pubkey], '#d': [d] },
-          (event, prevEvent) => event.created_at > prevEvent.created_at,
-          'Cannot replace an event with an older event',
-        );
+    if (!NKinds.replaceable(event.kind) && !NKinds.parameterizedReplaceable(event.kind)) return;
+
+    const prevEvents = await this.getFilterQuery(trx, {
+      kinds: [event.kind],
+      authors: [event.pubkey],
+      '#d': d && NKinds.parameterizedReplaceable(event.kind) ? [d] : undefined,
+    }).execute();
+
+    for (const prevEvent of prevEvents) {
+      if (!replaces(event, prevEvent)) {
+        throw new Error('Cannot replace an event with an older event');
+      } else {
+        const oldTags: string[][] = JSON.parse(prevEvent.tags);
+        const newTags = event.tags;
+        const diff = NDatabase.diffTags(oldTags, newTags);
+
       }
     }
+  }
+  static diffTags(oldTags: string[][], newTags: string[][]) {
+    const equal = (arr1: any[], arr2: any[]) => arr1.every((itm, i) => itm === arr2[i]);
+    const oldMap = Object.fromEntries(oldTags.map((tagSet) => [tagSet[0], tagSet.slice(1)]));
+
+    const addressed = new Set<string>();
+    const res: {
+      type: 'replacements' | 'updates' | 'deletions' | 'additions';
+      tag: string;
+      value: string[];
+    }[] = [];
+
+    for (const [tag, ...value] of newTags) {
+      addressed.add(tag);
+      res.push({
+        tag,
+        value,
+        type: oldMap[tag] ? (equal(oldMap[tag], value) ? 'updates' : 'replacements') : 'additions',
+      });
+    }
+
+    for (const [tag, ...value] of oldTags) {
+      if (addressed.has(tag)) continue;
+      res.push({ type: 'deletions', tag, value });
+    }
+
+    return Object.groupBy(res, v => v.type);
   }
 
   /** Insert the event into the database. */
