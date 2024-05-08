@@ -7,6 +7,7 @@
     "@nostrify/nostrify": "jsr:@nostrify/nostrify@^0.18.0",
     "@welshman/lib": "npm:@welshman/lib@^0.0.2",
     "@welshman/net": "npm:@welshman/net@^0.0.2",
-    "@welshman/util": "npm:@welshman/util@^0.0.2"
+    "@welshman/util": "npm:@welshman/util@^0.0.2",
+    "zustand": "npm:zustand@^4.5.2"
   }
 }
