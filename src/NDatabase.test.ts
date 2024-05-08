@@ -115,35 +115,52 @@ Deno.test('NDatabase.event with a deleted event', async () => {
   assertEquals(await db.query([{ kinds: [1] }]), []);
 });
 
-Deno.test('NDatabase.event with replaceable event', async () => {
+Deno.test('NDatabase.event with replaceable event', async (t) => {
   const db = await createDB();
-  assertEquals((await db.count([{ kinds: [0], authors: [event0.pubkey] }])).count, 0);
+  await t.step('ensure no kind 0 events exist', async () => {
+    assertEquals((await db.count([{ kinds: [0], authors: [event0.pubkey] }])).count, 0);
+  });
 
-  await db.event(event0);
-  await assertRejects(() => db.event(event0));
-  assertEquals((await db.count([{ kinds: [0], authors: [event0.pubkey] }])).count, 1);
+  await t.step('put kind 0 event and ensure putting it again fails', async () => {
+    await db.event(event0);
+    await assertRejects(() => db.event(event0));
+  });
 
-  const changeEvent = { ...event0, id: '123', created_at: event0.created_at + 1 };
-  await db.event(changeEvent);
-  assertEquals(await db.query([{ kinds: [0] }]), [changeEvent]);
+  await t.step('ensure only 1 kind 0 event exists', async () => {
+    assertEquals((await db.count([{ kinds: [0], authors: [event0.pubkey] }])).count, 1);
+  });
+
+  await t.step('ensure that replacing puts only one db in event', async () => {
+    const changeEvent = { ...event0, id: '123', created_at: event0.created_at + 1 };
+    await db.event(changeEvent);
+    assertEquals(await db.query([{ kinds: [0] }]), [changeEvent]);
+  });
 });
 
-Deno.test('NDatabase.event with parametirized replaceable event', async () => {
+Deno.test('NDatabase.event with parameterized replaceable event', async (t) => {
   const db = await createDB();
 
   const event0 = { id: '1', kind: 30000, pubkey: 'abc', content: '', created_at: 0, sig: '', tags: [['d', 'a']] };
   const event1 = { id: '2', kind: 30000, pubkey: 'abc', content: '', created_at: 1, sig: '', tags: [['d', 'a']] };
   const event2 = { id: '3', kind: 30000, pubkey: 'abc', content: '', created_at: 2, sig: '', tags: [['d', 'a']] };
 
-  await db.event(event0);
-  assertEquals(await db.query([{ ids: [event0.id] }]), [event0]);
+  await t.step('should insert replaceable event', async () => {
+    await db.event(event0);
+    assertEquals(await db.query([{ ids: [event0.id] }]), [event0]);
+  });
 
-  await db.event(event1);
-  assertEquals(await db.query([{ ids: [event0.id] }]), []);
-  assertEquals(await db.query([{ ids: [event1.id] }]), [event1]);
+  await t.step('should delete old event when inserting new event', async () => {
+    await db.event(event1);
+    assertEquals(await db.query([{ ids: [event0.id] }]), []);
+  });
 
-  await db.event(event2);
-  assertEquals(await db.query([{ ids: [event0.id] }]), []);
-  assertEquals(await db.query([{ ids: [event1.id] }]), []);
-  assertEquals(await db.query([{ ids: [event2.id] }]), [event2]);
+  await t.step('new event should be inserted correctly', async () => {
+    assertEquals(await db.query([{ ids: [event1.id] }]), [event1]);
+  });
+
+  await t.step('repeat with a third event', async () => {
+    await db.event(event2);
+    assertEquals(await db.query([{ ids: [event0.id, event1.id] }]), []);
+    assertEquals(await db.query([{ ids: [event2.id] }]), [event2]);
+  });
 });
