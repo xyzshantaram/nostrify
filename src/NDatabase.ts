@@ -110,7 +110,7 @@ export class NDatabase implements NStore {
           await trx.insertInto('nostr_tags').values(diff.additions.map(v => ({
             event_id: event.id,
             name: v.tag,
-            value: JSON.stringify(v.value)
+            value: v.value[0]
           }))).execute();
 
           for (const deletion of diff.deletions) {
