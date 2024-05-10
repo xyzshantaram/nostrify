@@ -196,13 +196,25 @@ export class NDatabase implements NStore {
     type E = Pick<NostrEvent, 'created_at'>;
     const replaces = (event: E, prevEvent: E) => event.created_at > prevEvent.created_at;
 
+    if (!prevEvents.length) {
+      const diff = NDatabase.diffTags([], event.tags);
+      diffs.push({
+        deletions: [],
+        additions: [],
+        replacements: [],
+        updates: [],
+        ...diff,
+        oldId: '',
+        newId: event.id
+      });
+      return diffs;
+    }
     for (const prevEvent of prevEvents) {
       if (!replaces(event, prevEvent)) {
         throw new Error('Cannot replace an event with an older event');
       } else {
         const oldTags: string[][] = JSON.parse(prevEvent.tags);
-        const newTags = event.tags;
-        const diff = NDatabase.diffTags(oldTags, newTags);
+        const diff = NDatabase.diffTags(oldTags, event.tags);
         diffs.push({
           deletions: [],
           additions: [],
@@ -282,7 +294,6 @@ export class NDatabase implements NStore {
     error: string,
   ): Promise<void> {
     const prevEvents = await this.getFilterQuery(trx, filter).execute();
-    console.log(prevEvents);
     for (const prevEvent of prevEvents) {
       if (!replaces(event, prevEvent)) {
         throw new Error(error);
@@ -392,7 +403,6 @@ export class NDatabase implements NStore {
   /** Delete events from each table. Should be run in a transaction! */
   protected async deleteEventsTrx(db: Kysely<NDatabaseSchema>, filters: NostrFilter[]): Promise<DeleteResult[]> {
     const query = this.getEventsQuery(filters).clearSelect().select('id');
-
     if (this.fts5) {
       await db.deleteFrom('nostr_fts5')
         .where('event_id', 'in', () => query)
