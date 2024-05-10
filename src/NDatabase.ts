@@ -121,7 +121,7 @@ export class NDatabase implements NStore {
           }
           for (const replacement of diff.replacements) {
             await trx.updateTable('nostr_tags')
-              .set({ value: JSON.stringify(replacement.value) })
+              .set({ value: JSON.stringify(replacement.value), event_id: event.id })
               .where('event_id', '=', diff.oldId)
               .where('name', '=', replacement.tag)
               .execute();
