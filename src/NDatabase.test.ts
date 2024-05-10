@@ -146,7 +146,7 @@ Deno.test('NDatabase.event with parameterized replaceable event', async (t) => {
 
   await t.step('should insert replaceable event', async () => {
     await db.event(event0);
-    assertEquals(await db.query([{ ids: [event0.id] }]), [event0]);
+    assertEquals(await db.query([{ '#d': ['a'] }]), [event0]);
   });
 
   await t.step('should delete old event when inserting new event', async () => {
