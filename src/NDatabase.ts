@@ -216,7 +216,8 @@ export class NDatabase implements NStore {
 
     return diffs;
   }
-  static diffTags(oldTags: string[][], newTags: string[][]): DiffResult {
+
+  private static diffTags(oldTags: string[][], newTags: string[][]): DiffResult {
     const equal = (arr1: any[], arr2: any[]) => arr1.every((itm, i) => itm === arr2[i]);
     const oldMap = Object.fromEntries(oldTags.map((tagSet) => [tagSet[0], tagSet.slice(1)]));
 
