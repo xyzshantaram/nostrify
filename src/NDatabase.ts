@@ -49,7 +49,7 @@ interface TagsDiffItem {
   type: 'replacements' | 'updates' | 'deletions' | 'additions';
   tag: string;
   value: string[];
-};
+}
 
 type DiffResult = Partial<Record<TagsDiffItem['type'], TagsDiffItem[]>>;
 
@@ -112,51 +112,29 @@ export class NDatabase implements NStore {
     return await this.db.transaction().execute(async (trx) => {
       await this.deleteEvents(trx, event);
       if (NKinds.replaceable(event.kind) || NKinds.parameterizedReplaceable(event.kind)) {
-        const diffs = await this.replaceEvents(trx, event);
+        const diffs = await this.calculateEventTagDiff(trx, event);
+        // insert the event _after_ calculating the diff - otherwise we will diff the
+        // event against itself.
         await this.insertEvent(trx, event);
-        for (const diff of diffs) {
-          if (diff.additions?.length) {
-            await trx.insertInto('nostr_tags').values(diff.additions.map(v => ({
-              event_id: event.id,
-              name: v.tag,
-              value: v.value[0]
-            }))).execute();
-          }
 
-          if (diff.deletions?.length) {
-            await trx.deleteFrom('nostr_tags')
-              .where('event_id', '=', diff.oldId)
-              .where(eb => eb.or(diff.deletions!.map(deletion => eb('name', '=', deletion.tag))))
-              .execute();
-          }
-
-          for (const itm of ([diff.replacements || undefined, diff.updates || undefined]).flat()) {
-            if (!itm) continue;
-            const val: Record<string, any> = { event_id: event.id };
-            if (itm.type === 'replacements') val.value = itm.value;
-            trx.updateTable('nostr_tags')
-              .set(val)
-              .where('event_id', '=', diff.oldId)
-              .where('name', '=', itm.tag);
-          }
-        }
-      }
-      else {
+        // process the diff. Inserts and deletes are grouped together;
+        // updates are done piecemeal (for now).
+        this.executeDiff(trx, event, diffs);
+      } else {
+        // otherwise, straightaway insert the event and its tags.
         await this.insertEvent(trx, event);
         await this.insertTags(trx, event);
       }
+      // search indexing is common to all evt types.
       await this.indexSearch(trx, event);
     }).catch((error) => {
       // Don't throw for duplicate events.
-      if (error.message.includes('UNIQUE constraint failed')) {
-        return;
-      } else {
-        throw error;
-      }
+      if (error.message.includes('UNIQUE constraint failed')) return;
+      else throw error;
     });
   }
 
-  /** Check if an event has been deleted. */
+  /** Check if an event has deleted previously with a kind 5. */
   protected async isDeleted(event: NostrEvent): Promise<boolean> {
     const [deletion] = await this.query([
       { kinds: [5], authors: [event.pubkey], '#e': [event.id], limit: 1 },
@@ -174,20 +152,64 @@ export class NDatabase implements NStore {
     }
   }
 
-  /** Replace events in NIP-01 replaceable ranges with the same kind and pubkey. */
-  protected async replaceEvents(trx: Kysely<NDatabaseSchema>, event: NostrEvent) {
-    if (!NKinds.replaceable(event.kind) && !NKinds.parameterizedReplaceable(event.kind))
-      throw new Error("Non-replaceable event passed to replaceEvents()");
+  protected async executeDiff(
+    trx: Kysely<NDatabaseSchema>,
+    event: NostrEvent,
+    diffs: Awaited<ReturnType<NDatabase['calculateEventTagDiff']>>,
+  ) {
+    for (const diff of diffs) {
+      if (diff.additions?.length) {
+        await trx.insertInto('nostr_tags').values(diff.additions.map((v) => ({
+          event_id: event.id,
+          name: v.tag,
+          value: v.value[0],
+        }))).execute();
+      }
 
+      if (diff.deletions?.length) {
+        await trx.deleteFrom('nostr_tags')
+          .where('event_id', '=', diff.oldId)
+          .where((eb) => eb.or(diff.deletions!.map((deletion) => eb('name', '=', deletion.tag))))
+          .execute();
+      }
+
+      for (const itm of [diff.replacements || undefined, diff.updates || undefined].flat()) {
+        if (!itm) continue;
+        const val: Record<string, any> = { event_id: event.id };
+        if (itm.type === 'replacements') val.value = itm.value;
+        await trx.updateTable('nostr_tags')
+          .set(val)
+          .where('event_id', '=', diff.oldId)
+          .where('name', '=', itm.tag)
+          .execute();
+      }
+    }
+  }
+
+  /**
+   * Compute the list of changes to be made to the database to replace one
+   * version of an event with another version of an event.
+   * @param trx The transaction to use.
+   * @param event The event to compute the diff for.
+   * @returns The list of change operations to perform, along with the new and old event ids.
+   */
+  protected async calculateEventTagDiff(trx: Kysely<NDatabaseSchema>, event: NostrEvent) {
+    if (!NKinds.replaceable(event.kind) && !NKinds.parameterizedReplaceable(event.kind)) {
+      throw new Error('Non-replaceable event passed to NDatabase::diffEvents');
+    }
+
+    // Find the d tag associated with this event. If this is a parameterized replaceable
+    // event and no d tag is supplied, the event is invalid and we return.
     const d = event.tags.find(([tag]) => tag === 'd')?.[1];
     if (NKinds.parameterizedReplaceable(event.kind) && !d) return [];
 
     const filter: NostrFilter = {
       kinds: [event.kind],
       authors: [event.pubkey],
-      '#d': d && NKinds.parameterizedReplaceable(event.kind) ? [d] : undefined
+      '#d': d && NKinds.parameterizedReplaceable(event.kind) ? [d] : undefined,
     };
 
+    // Now, delete all events older than the given event.
     await this.deleteReplaced(
       trx,
       event,
@@ -198,18 +220,21 @@ export class NDatabase implements NStore {
 
     const prevEvents = await this.getFilterQuery(trx, filter).execute();
 
-    const diffs: ({ oldId: string, newId: string } & DiffResult)[] = [];
     type E = Pick<NostrEvent, 'created_at'>;
     const replaces = (event: E, prevEvent: E) => event.created_at > prevEvent.created_at;
 
+    const diffs: ({ oldId: string; newId: string } & DiffResult)[] = [];
+
     if (!prevEvents.length) {
-      diffs.push({ ...NDatabase.diffTags([], event.tags), oldId: '', newId: event.id });
-    }
-    else {
+      // If no previous events exist, the diff is going to be empty, even though
+      // we have to process N additions. So we blindly add the tags.
+      diffs.push({ ...NDatabase.getTagChangeList([], event.tags), oldId: '', newId: event.id });
+    } else {
+      // For each previous event, diff the tags and add them to the changeset.
       for (const prevEvent of prevEvents) {
         if (!replaces(event, prevEvent)) throw new Error('Cannot replace an event with an older event');
         const oldTags: string[][] = JSON.parse(prevEvent.tags);
-        const diff = NDatabase.diffTags(oldTags, event.tags);
+        const diff = NDatabase.getTagChangeList(oldTags, event.tags);
         diffs.push({ ...diff, oldId: prevEvent.id, newId: event.id });
       }
     }
@@ -217,28 +242,48 @@ export class NDatabase implements NStore {
     return diffs;
   }
 
-  private static diffTags(oldTags: string[][], newTags: string[][]): DiffResult {
+  /**
+   * Compute the differences in tags between two versions of an event.
+   * This event blindly compares two string arrays - the actual list of changes is computed
+   *
+   * @param oldTags The tags array of the replaced event.
+   * @param newTags The tags array of the replacing event.
+   * @returns the result of diffing the two sets of tags as a Record of change types --> change lists.
+   */
+  private static getTagChangeList(oldTags: string[][], newTags: string[][]): DiffResult {
     const equal = (arr1: any[], arr2: any[]) => arr1.every((itm, i) => itm === arr2[i]);
+    // Map from tag names to tag value.
     const oldMap = Object.fromEntries(oldTags.map((tagSet) => [tagSet[0], tagSet.slice(1)]));
 
     const addressed = new Set<string>();
     const res: TagsDiffItem[] = [];
 
     for (const [tag, ...value] of newTags) {
+      // This loop calculates updates (id changed) / replacements (id and value changed) /
+      // additions (new tag added).
+      // we _could_ do deletions here as well but that would be a nested loop going over all tags.
+      // instead, we use the `addressed` set to keep track of what tags have already been handled
+      // and don't touch those ones in the second loop.
       addressed.add(tag);
       res.push({
         tag,
         value,
+        // if the old map has a tag of the same name and the values are equal,
+        // we simply need to **update** the id.
+        // if the old map has the tag but the values aren't equal, we **replace** the tag.
+        // if the old map does not contain the tag, we simply add it to the new event.
         type: oldMap[tag] ? (equal(oldMap[tag], value) ? 'updates' : 'replacements') : 'additions',
       });
     }
 
+    // Handle deletions by figuring out what tags exist in the old set but not the new one.
     for (const [tag, ...value] of oldTags) {
       if (addressed.has(tag)) continue;
       res.push({ type: 'deletions', tag, value });
     }
 
-    return Object.groupBy(res, v => v.type);
+    // finally, group the result by type so we can do grouped inserts/deletes.
+    return Object.groupBy(res, (v) => v.type);
   }
 
   /** Insert the event into the database. */
