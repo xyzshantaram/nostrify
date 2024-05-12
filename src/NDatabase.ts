@@ -45,6 +45,14 @@ export interface NDatabaseOpts {
   searchText?(event: NostrEvent): string | undefined;
 }
 
+interface TagsDiffItem {
+  type: 'replacements' | 'updates' | 'deletions' | 'additions';
+  tag: string;
+  value: string[];
+};
+
+type DiffResult = Partial<Record<TagsDiffItem['type'], TagsDiffItem[]>>;
+
 /**
  * SQLite database storage adapter for Nostr events.
  * It uses [Kysely](https://kysely.dev/) to make queries, making it flexible for a variety of use-cases.
@@ -99,7 +107,7 @@ export class NDatabase implements NStore {
     if (NKinds.ephemeral(event.kind)) return;
 
     if (await this.isDeleted(event)) {
-      throw new Error('Cannot add a deleted event');
+      throw new Error('Cannot add a deleted event!');
     }
     return await this.db.transaction().execute(async (trx) => {
       await this.deleteEvents(trx, event);
@@ -107,31 +115,29 @@ export class NDatabase implements NStore {
         const diffs = await this.replaceEvents(trx, event);
         await this.insertEvent(trx, event);
         for (const diff of diffs) {
-          await trx.insertInto('nostr_tags').values(diff.additions.map(v => ({
-            event_id: event.id,
-            name: v.tag,
-            value: v.value[0]
-          }))).execute();
+          if (diff.additions?.length) {
+            await trx.insertInto('nostr_tags').values(diff.additions.map(v => ({
+              event_id: event.id,
+              name: v.tag,
+              value: v.value[0]
+            }))).execute();
+          }
 
-          for (const deletion of diff.deletions) {
+          if (diff.deletions?.length) {
             await trx.deleteFrom('nostr_tags')
               .where('event_id', '=', diff.oldId)
-              .where('name', '=', deletion.tag)
+              .where(eb => eb.or(diff.deletions!.map(deletion => eb('name', '=', deletion.tag))))
               .execute();
           }
-          for (const replacement of diff.replacements) {
-            await trx.updateTable('nostr_tags')
-              .set({ value: JSON.stringify(replacement.value), event_id: event.id })
+
+          for (const itm of ([diff.replacements || undefined, diff.updates || undefined]).flat()) {
+            if (!itm) continue;
+            const val: Record<string, any> = { event_id: event.id };
+            if (itm.type === 'replacements') val.value = itm.value;
+            trx.updateTable('nostr_tags')
+              .set(val)
               .where('event_id', '=', diff.oldId)
-              .where('name', '=', replacement.tag)
-              .execute();
-          }
-          for (const update of diff.updates) {
-            await trx.updateTable('nostr_tags')
-              .set({ event_id: event.id })
-              .where('event_id', '=', diff.oldId)
-              .where('name', '=', update.tag)
-              .execute();
+              .where('name', '=', itm.tag);
           }
         }
       }
@@ -192,53 +198,30 @@ export class NDatabase implements NStore {
 
     const prevEvents = await this.getFilterQuery(trx, filter).execute();
 
-    const diffs = [];
+    const diffs: ({ oldId: string, newId: string } & DiffResult)[] = [];
     type E = Pick<NostrEvent, 'created_at'>;
     const replaces = (event: E, prevEvent: E) => event.created_at > prevEvent.created_at;
 
     if (!prevEvents.length) {
-      const diff = NDatabase.diffTags([], event.tags);
-      diffs.push({
-        deletions: [],
-        additions: [],
-        replacements: [],
-        updates: [],
-        ...diff,
-        oldId: '',
-        newId: event.id
-      });
-      return diffs;
+      diffs.push({ ...NDatabase.diffTags([], event.tags), oldId: '', newId: event.id });
     }
-    for (const prevEvent of prevEvents) {
-      if (!replaces(event, prevEvent)) {
-        throw new Error('Cannot replace an event with an older event');
-      } else {
+    else {
+      for (const prevEvent of prevEvents) {
+        if (!replaces(event, prevEvent)) throw new Error('Cannot replace an event with an older event');
         const oldTags: string[][] = JSON.parse(prevEvent.tags);
         const diff = NDatabase.diffTags(oldTags, event.tags);
-        diffs.push({
-          deletions: [],
-          additions: [],
-          replacements: [],
-          updates: [],
-          ...diff,
-          oldId: prevEvent.id,
-          newId: event.id
-        })
+        diffs.push({ ...diff, oldId: prevEvent.id, newId: event.id });
       }
     }
 
     return diffs;
   }
-  static diffTags(oldTags: string[][], newTags: string[][]) {
+  static diffTags(oldTags: string[][], newTags: string[][]): DiffResult {
     const equal = (arr1: any[], arr2: any[]) => arr1.every((itm, i) => itm === arr2[i]);
     const oldMap = Object.fromEntries(oldTags.map((tagSet) => [tagSet[0], tagSet.slice(1)]));
 
     const addressed = new Set<string>();
-    const res: {
-      type: 'replacements' | 'updates' | 'deletions' | 'additions';
-      tag: string;
-      value: string[];
-    }[] = [];
+    const res: TagsDiffItem[] = [];
 
     for (const [tag, ...value] of newTags) {
       addressed.add(tag);
