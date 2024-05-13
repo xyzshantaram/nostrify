@@ -46,7 +46,7 @@ export interface NDatabaseOpts {
 }
 
 interface TagsDiffItem {
-  type: 'replacements' | 'updates' | 'deletions' | 'additions';
+  type: 'replacements' | 'deletions' | 'additions';
   tag: string;
   value: string[];
 }
@@ -113,12 +113,12 @@ export class NDatabase implements NStore {
       await this.deleteEvents(trx, event);
       if (NKinds.replaceable(event.kind) || NKinds.parameterizedReplaceable(event.kind)) {
         const diffs = await this.calculateEventTagDiff(trx, event);
-        // insert the event _after_ calculating the diff - otherwise we will diff the
+        // Insert the event _after_ calculating the diff - otherwise we will diff the
         // event against itself.
         await this.insertEvent(trx, event);
 
-        // process the diff. Inserts and deletes are grouped together;
-        // updates are done piecemeal (for now).
+        // Process the diff. Inserts and deletes are grouped together;
+        // replacements are done piecemeal (for now).
         this.executeDiff(trx, event, diffs);
       } else {
         // otherwise, straightaway insert the event and its tags.
@@ -158,6 +158,11 @@ export class NDatabase implements NStore {
     diffs: Awaited<ReturnType<NDatabase['calculateEventTagDiff']>>,
   ) {
     for (const diff of diffs) {
+      await trx.updateTable('nostr_tags')
+        .set({ event_id: event.id })
+        .where('event_id', '=', diff.oldId)
+        .execute();
+
       if (diff.additions?.length) {
         await trx.insertInto('nostr_tags').values(diff.additions.map((v) => ({
           event_id: event.id,
@@ -173,15 +178,16 @@ export class NDatabase implements NStore {
           .execute();
       }
 
-      for (const itm of [diff.replacements || undefined, diff.updates || undefined].flat()) {
-        if (!itm) continue;
-        const val: Record<string, any> = { event_id: event.id };
-        if (itm.type === 'replacements') val.value = itm.value;
-        await trx.updateTable('nostr_tags')
-          .set(val)
-          .where('event_id', '=', diff.oldId)
-          .where('name', '=', itm.tag)
-          .execute();
+      if (diff.replacements?.length) {
+        for (const itm of diff.replacements) {
+          await trx.updateTable('nostr_tags')
+            .set({
+              value: JSON.stringify(itm.value),
+            })
+            .where('event_id', '=', diff.oldId)
+            .where('name', '=', itm.tag)
+            .execute();
+        }
       }
     }
   }
@@ -259,21 +265,21 @@ export class NDatabase implements NStore {
     const res: TagsDiffItem[] = [];
 
     for (const [tag, ...value] of newTags) {
-      // This loop calculates updates (id changed) / replacements (id and value changed) /
-      // additions (new tag added).
-      // we _could_ do deletions here as well but that would be a nested loop going over all tags.
-      // instead, we use the `addressed` set to keep track of what tags have already been handled
-      // and don't touch those ones in the second loop.
+      // This loop calculates replacements (id and value changed)
+      // and additions (new tag added).
+      // We _could_ do deletions here as well but that would be an inefficient
+      // nested loop going over all tags. Instead, we use the `addressed` set
+      // to keep track of what tags have already been handled and don't touch
+      // those ones in the second loop.
       addressed.add(tag);
-      res.push({
-        tag,
-        value,
-        // if the old map has a tag of the same name and the values are equal,
-        // we simply need to **update** the id.
-        // if the old map has the tag but the values aren't equal, we **replace** the tag.
-        // if the old map does not contain the tag, we simply add it to the new event.
-        type: oldMap[tag] ? (equal(oldMap[tag], value) ? 'updates' : 'replacements') : 'additions',
-      });
+      let type: 'replacements' | 'additions';
+      if (oldMap[tag]) {
+        type = 'replacements';
+        if (equal(oldMap[tag], value)) continue;
+      } else {
+        type = 'additions';
+      }
+      res.push({ tag, value, type });
     }
 
     // Handle deletions by figuring out what tags exist in the old set but not the new one.
