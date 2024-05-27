@@ -30,8 +30,18 @@ export interface NDatabaseSchema {
   nostr_pgfts: {
     event_id: string;
     search_vec: unknown;
+    ranking: number;
   };
 }
+
+export interface NDatabaseSearchIndex {
+  ranking: number,
+  idx: string
+};
+
+type NDatabaseIndexerMaybe = NDatabaseSearchIndex | undefined;
+
+export type NDatabaseFtsIndexer = (event: NostrEvent) => NDatabaseIndexerMaybe | Promise<NDatabaseIndexerMaybe>;
 
 export interface NDatabaseOpts {
   /** Enable full-text-search for Postgres or SQLite. Disabled by default. */
@@ -46,7 +56,7 @@ export interface NDatabaseOpts {
    * By default, only kinds 0 and 1 events are indexed for search, and the search text is the event content with tag values appended to it.
    * Only applicable if `fts5` is `true`.
    */
-  searchText?(event: NostrEvent): string | undefined;
+  searchText: NDatabaseFtsIndexer;
 }
 
 /**
@@ -77,7 +87,7 @@ export class NDatabase implements NStore {
   private db: Kysely<NDatabaseSchema>;
   private fts?: 'sqlite' | 'postgres';
   private indexTags: (event: NostrEvent) => string[][];
-  private searchText: (event: NostrEvent) => string | undefined;
+  private searchText: NDatabaseFtsIndexer;
 
   constructor(db: Kysely<any>, opts?: NDatabaseOpts) {
     this.db = db as Kysely<NDatabaseSchema>;
@@ -92,9 +102,12 @@ export class NDatabase implements NStore {
   }
 
   /** Default search content builder. */
-  static searchText(event: NostrEvent): string | undefined {
+  static searchText(event: NostrEvent): NDatabaseSearchIndex | undefined {
     if (event.kind === 0 || event.kind === 1) {
-      return `${event.content} ${event.tags.map(([_name, value]) => value).join(' ')}`.substring(0, 1000);
+      return {
+        idx: `${event.content} ${event.tags.map(([_name, value]) => value).join(' ')}`.substring(0, 1000),
+        ranking: 0
+      }
     }
   }
 
@@ -192,12 +205,12 @@ export class NDatabase implements NStore {
   protected async indexSearch(trx: Kysely<NDatabaseSchema>, event: NostrEvent): Promise<void> {
     if (!this.fts) return;
 
-    const content = this.searchText(event);
-    if (!content) return;
+    const indexed = await this.searchText(event);
+    if (!indexed || !indexed.idx) return;
 
     if (this.fts === 'sqlite') {
       await trx.insertInto('nostr_fts5')
-        .values({ event_id: event.id, content })
+        .values({ event_id: event.id, content: indexed.idx })
         .execute();
     }
 
@@ -205,7 +218,8 @@ export class NDatabase implements NStore {
       await trx.insertInto('nostr_pgfts')
         .values({
           event_id: event.id,
-          search_vec: sql`to_tsvector(${content})`,
+          search_vec: sql`to_tsvector(${indexed.idx})`,
+          ranking: indexed.ranking
         })
         .execute();
     }
@@ -274,9 +288,13 @@ export class NDatabase implements NStore {
       }
 
       if (this.fts === 'postgres') {
-        query = query
-          .innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id')
-          .where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`);
+        query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id')
+        if (filter.search.includes('ditto_order:ranked')) {
+          // potentially cancerous
+          query = (query as any)
+            .orderBy('nostr_pgfts.ranking desc')
+        }
+        query = query.where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`);
       }
 
       if (!this.fts) {
@@ -425,6 +443,7 @@ export class NDatabase implements NStore {
         .ifNotExists()
         .addColumn('event_id', 'text', (c) => c.primaryKey().references('nostr_events.id').onDelete('cascade'))
         .addColumn('search_vec', sql`tsvector`, (c) => c.notNull())
+        .addColumn('ranking', 'integer', (c) => c.notNull())
         .execute();
 
       await schema.createIndex('nostr_pgfts_gin_search_vec')
