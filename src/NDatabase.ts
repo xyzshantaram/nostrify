@@ -56,7 +56,7 @@ export interface NDatabaseOpts {
    * By default, only kinds 0 and 1 events are indexed for search, and the search text is the event content with tag values appended to it.
    * Only applicable if `fts5` is `true`.
    */
-  searchText: NDatabaseFtsIndexer;
+  searchText?: NDatabaseFtsIndexer;
 }
 
 /**
