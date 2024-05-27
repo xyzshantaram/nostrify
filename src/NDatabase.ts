@@ -292,10 +292,9 @@ export class NDatabase implements NStore {
           query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id')
             .where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`)
             .orderBy('nostr_pgfts.ranking desc');
-        }
-        else {
+        } else {
           query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id')
-            .where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`)
+            .where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`);
         }
       }
 
