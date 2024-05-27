@@ -288,13 +288,15 @@ export class NDatabase implements NStore {
       }
 
       if (this.fts === 'postgres') {
-        query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id');
         if (filter.search.endsWith('$$ditto_order:ranked')) {
-          // potentially cancerous
-          query = (query as any)
+          query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id')
+            .where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`)
             .orderBy('nostr_pgfts.ranking desc');
         }
-        query = query.where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`);
+        else {
+          query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id')
+            .where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`)
+        }
       }
 
       if (!this.fts) {
