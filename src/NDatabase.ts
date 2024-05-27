@@ -289,7 +289,7 @@ export class NDatabase implements NStore {
 
       if (this.fts === 'postgres') {
         query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id')
-        if (filter.search.includes('ditto_order:ranked')) {
+        if (filter.search.endsWith('$$ditto_order:ranked')) {
           // potentially cancerous
           query = (query as any)
             .orderBy('nostr_pgfts.ranking desc')
