@@ -35,9 +35,9 @@ export interface NDatabaseSchema {
 }
 
 export interface NDatabaseSearchIndex {
-  ranking: number,
-  idx: string
-};
+  ranking: number;
+  idx: string;
+}
 
 type NDatabaseIndexerMaybe = NDatabaseSearchIndex | undefined;
 
@@ -106,8 +106,8 @@ export class NDatabase implements NStore {
     if (event.kind === 0 || event.kind === 1) {
       return {
         idx: `${event.content} ${event.tags.map(([_name, value]) => value).join(' ')}`.substring(0, 1000),
-        ranking: 0
-      }
+        ranking: 0,
+      };
     }
   }
 
@@ -219,7 +219,7 @@ export class NDatabase implements NStore {
         .values({
           event_id: event.id,
           search_vec: sql`to_tsvector(${indexed.idx})`,
-          ranking: indexed.ranking
+          ranking: indexed.ranking,
         })
         .execute();
     }
@@ -288,11 +288,11 @@ export class NDatabase implements NStore {
       }
 
       if (this.fts === 'postgres') {
-        query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id')
+        query = query.innerJoin('nostr_pgfts', 'nostr_pgfts.event_id', 'nostr_events.id');
         if (filter.search.endsWith('$$ditto_order:ranked')) {
           // potentially cancerous
           query = (query as any)
-            .orderBy('nostr_pgfts.ranking desc')
+            .orderBy('nostr_pgfts.ranking desc');
         }
         query = query.where(sql`phraseto_tsquery(${filter.search})`, '@@', sql`search_vec`);
       }
