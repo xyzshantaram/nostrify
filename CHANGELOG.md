@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.5] - 2024-06-01
+
+### Fixed
+
+- NSchema: `created_at` must be a nonnegative integer.
+- Upgrade `nostr-tools` to v2.7.0, remove dependency on `@noble/hashes`.
+- NostrBuildUploader: don't set `dim` tag if nostr.build returns 0 dimensions.
+
 ## [0.22.4] - 2024-05-24
 
 ### Changed
@@ -200,7 +208,8 @@ Redeploy to JSR (to hopefully fix [npm compatibility](https://github.com/jsr-io/
 
 - Added `NDenoKv` storage class, for storing events in Deno KV.
 
-[unreleased]: https://gitlab.com/soapbox-pub/nostrify/-/compare/v0.22.4...HEAD
+[unreleased]: https://gitlab.com/soapbox-pub/nostrify/-/compare/v0.22.5...HEAD
+[0.22.5]: https://gitlab.com/soapbox-pub/nostrify/-/compare/v0.22.4...v0.22.5
 [0.22.4]: https://gitlab.com/soapbox-pub/nostrify/-/compare/v0.22.3...v0.22.4
 [0.22.3]: https://gitlab.com/soapbox-pub/nostrify/-/compare/v0.22.2...v0.22.3
 [0.22.2]: https://gitlab.com/soapbox-pub/nostrify/-/compare/v0.22.1...v0.22.2
