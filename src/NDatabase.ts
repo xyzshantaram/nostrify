@@ -453,13 +453,6 @@ export class NDatabase implements NStore {
         .using('gin')
         .column('search_vec')
         .execute();
-
-      await schema.createIndex('nostr_pgfts_gin_search_vec')
-        .ifNotExists()
-        .on('nostr_pgfts')
-        .using('gin')
-        .columns(['search_vec', 'ranking'])
-        .execute();
     }
   }
 }
