@@ -6,9 +6,9 @@ export interface NostrFilter {
   authors?: string[];
   /** A list of a kind numbers. */
   kinds?: number[];
-  /** An integer unix timestamp in seconds, events must be newer than this to pass. */
+  /** An integer unix timestamp in seconds, events must be newer or equal than this to pass. */
   since?: number;
-  /** An integer unix timestamp in seconds, events must be older than this to pass. */
+  /** An integer unix timestamp in seconds, events must be older or equal than this to pass. */
   until?: number;
   /** Maximum number of events relays SHOULD return in the initial query. */
   limit?: number;
