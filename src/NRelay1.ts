@@ -32,18 +32,22 @@ export interface NRelay1Opts {
   backoff?: Backoff | false;
   /** Ensure the event is valid before returning it. Default: `nostrTools.verifyEvent`. */
   verifyEvent?(event: NostrEvent): boolean;
+  /** Time in seconds after which the NRelay1 instance closes the connection if no subscriptions are present. Defaults to 30 */
+  timeout?: number;
 }
 
 export class NRelay1 implements NRelay {
-  readonly socket: Websocket;
+  socket: Websocket;
+  private closeTimeout: number | null;
+  private configTimeoutSeconds: number;
+  private opts: NRelay1Opts;
 
   private subscriptions = new Map<string, NostrClientREQ>();
   private ee = new EventTarget();
 
-  constructor(url: string, opts: NRelay1Opts = {}) {
+  websocketFactory(url: string, opts: NRelay1Opts) {
     const { auth, backoff = new ExponentialBackoff(1000), verifyEvent = _verifyEvent } = opts;
-
-    this.socket = new WebsocketBuilder(url)
+    return new WebsocketBuilder(url)
       .withBuffer(new ArrayQueue())
       .withBackoff(backoff === false ? undefined : backoff)
       .onOpen(() => {
@@ -73,15 +77,30 @@ export class NRelay1 implements NRelay {
             this.ee.dispatchEvent(new CustomEvent(`count:${msg[1]}`, { detail: msg }));
             break;
           case 'AUTH':
-            auth?.(msg[1]).then((event) => this.send(['AUTH', event])).catch(() => {});
+            auth?.(msg[1]).then((event) => this.send(['AUTH', event])).catch(() => { });
         }
       })
       .build();
   }
 
+  constructor(url: string, opts: NRelay1Opts = {}) {
+    const { timeout } = opts;
+    this.configTimeoutSeconds = timeout || 30;
+    this.closeTimeout = null;
+    this.opts = opts;
+
+    this.socket = this.websocketFactory(url, opts);
+  }
+
   protected send(msg: NostrClientMsg): void {
     switch (msg[0]) {
       case 'REQ':
+        if (this.closeTimeout) {
+          clearTimeout(this.closeTimeout);
+        }
+        if (this.socket.readyState === WebSocket.CLOSED) {
+          this.socket = this.websocketFactory(this.socket.url, this.opts);
+        }
         this.subscriptions.set(msg[1], msg);
         break;
       case 'CLOSE':
@@ -94,6 +113,15 @@ export class NRelay1 implements NRelay {
 
     if (this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(msg));
+    }
+  }
+
+  removeSubscription(name: string) {
+    this.subscriptions.delete(name);
+    if (this.subscriptions.size === 0) {
+      this.closeTimeout = setTimeout(async () => {
+        await this.close();
+      }, this.configTimeoutSeconds * 1000);
     }
   }
 
