@@ -12,6 +12,7 @@ export class MockRelayWs {
   server: Server;
   events: NostrEvent[];
   first: boolean;
+  private failEvts: boolean = false;
 
   static send(socket: WsSender, subscription: string, event: NostrEvent) {
     socket.send(JSON.stringify(['EVENT', subscription, event]));
@@ -19,6 +20,14 @@ export class MockRelayWs {
 
   close() {
     this.server.close();
+  }
+
+  set failEvents(state: boolean) {
+    this.failEvts = state;
+  }
+
+  get failEvents() {
+    return this.failEvts;
   }
 
   constructor(url: string, preloaded?: NostrEvent[]) {
@@ -55,7 +64,7 @@ export class MockRelayWs {
 
           case 'EVENT': {
             const [_, evt] = parsed;
-            const ok: NostrRelayOK = ['OK', evt.id, true, ''];
+            const ok: NostrRelayOK = ['OK', evt.id, !this.failEvts, ''];
             conn.send(JSON.stringify(ok));
             for (const [id, { filters, socket }] of subscriptions.entries()) {
               if (matchFilters(filters, evt)) MockRelayWs.send(socket, id, evt);

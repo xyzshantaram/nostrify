@@ -1,4 +1,4 @@
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertRejects } from '@std/assert';
 import { finalizeEvent, generateSecretKey } from 'nostr-tools';
 
 import { NostrEvent } from '../interfaces/NostrEvent.ts';
@@ -49,18 +49,30 @@ Deno.test('NRelay1.req', async () => {
   clearTimeout(tid);
 });
 
-Deno.test('NRelay1.event', async () => {
+Deno.test('NRelay1.event', async (t) => {
   const server = new MockRelayWs('wss://mock.relay');
   const relay = new NRelay1('wss://mock.relay/');
 
-  const event: NostrEvent = finalizeEvent({
+  const key = generateSecretKey();
+  const event = () => finalizeEvent({
     kind: 1,
     content: 'This is an automated test from Nostrify: https://gitlab.com/soapbox-pub/nostrify',
     tags: [],
     created_at: Math.floor(Date.now() / 1000),
-  }, generateSecretKey());
+  }, key);
 
-  await relay.event(event);
+  await t.step('allow sending events', async () => {
+    await relay.event(event());
+  })
+
+  await t.step('throw on OK:false response from server', async () => {
+    await assertRejects(async () => {
+      server.failEvents = true;
+      await relay.event(event());
+      server.failEvents = false;
+    });
+  });
+
   await relay.close();
   server.close();
 });
