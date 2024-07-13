@@ -1,21 +1,24 @@
 import { getFilterLimit } from 'nostr-tools';
 
 import { NostrEvent } from '../interfaces/NostrEvent.ts';
-import { NostrFilter } from '../interfaces/NostrFilter.ts';
+import { filtersSplitted, NostrFilter } from '../interfaces/NostrFilter.ts';
 import { NostrRelayCLOSED, NostrRelayEOSE, NostrRelayEVENT } from '../interfaces/NostrRelayMsg.ts';
-import { NRelay } from '../interfaces/NRelay.ts';
+import { NRelay, NRelayOutbox } from '../interfaces/NRelay.ts';
 
 import { Machina } from './utils/Machina.ts';
 import { NKinds } from './NKinds.ts';
 import { NSet } from './NSet.ts';
+import { userRelays } from '../interfaces/NProfilePointer.ts';
 
 export interface NPoolOpts {
   /** Creates an `NRelay` instance for the given URL. */
   open(url: WebSocket['url']): NRelay;
-  /** Determines the relays to use for making `REQ`s to the given filters. To support the Outbox model, it should analyze the `authors` field of the filters. */
+  /** Determines the default relays to use for making `REQ`s to the given filters. */
   reqRelays(filters: NostrFilter[]): Promise<WebSocket['url'][]>;
-  /** Determines the relays to use for publishing the given event. To support the Outbox model, it should analyze the `pubkey` field of the event. */
+  /** Determines the default relays to use for publishing the given event. */
   eventRelays(event: NostrEvent): Promise<WebSocket['url'][]>;
+  /** Specific relays for each user pubkey*/
+  bootstrapOutboxRelays: Map<string, NRelayOutbox>;
 }
 
 /**
@@ -50,11 +53,15 @@ export class NPool implements NRelay {
   private eventRelays: (event: NostrEvent) => Promise<WebSocket['url'][]>;
 
   private relays: Map<WebSocket['url'], NRelay> = new Map();
+  private userRelays: userRelays = new Map();
 
-  constructor({ open, eventRelays, reqRelays }: NPoolOpts) {
+  constructor({ open, eventRelays, reqRelays, bootstrapOutboxRelays }: NPoolOpts) {
     this.open = open;
     this.reqRelays = reqRelays;
     this.eventRelays = eventRelays;
+    for (const outboxRelays of bootstrapOutboxRelays) {
+      this.userRelays.set(outboxRelays[0], outboxRelays[1]);
+    }
   }
 
   /** Get or create a relay instance for the given URL. */
@@ -83,27 +90,39 @@ export class NPool implements NRelay {
     const eoses = new Set<WebSocket['url']>();
     const closes = new Set<WebSocket['url']>();
 
-    for (const url of relayUrls) {
-      const relay = this.relay(url);
-      (async () => {
-        for await (const msg of relay.req(filters, { signal })) {
-          if (msg[0] === 'EOSE') {
-            eoses.add(url);
-            if (eoses.size === relayUrls.size) {
+    const [fallbackFilters, filtersForOutboxRelays] = NPool.splitFilters(filters, this.userRelays);
+
+    if (filtersForOutboxRelays.size > 0) {
+      for (const url of filtersForOutboxRelays.keys()) {
+        const relay = this.relay(url);
+        // iterate over and make the requests, make sure to close properly with machina
+        console.log(relay); // get rid of un-used variable
+      }
+    }
+
+    if (fallbackFilters.length > 0) {
+      for (const url of relayUrls) {
+        const relay = this.relay(url);
+        (async () => {
+          for await (const msg of relay.req(filters, { signal })) {
+            if (msg[0] === 'EOSE') {
+              eoses.add(url);
+              if (eoses.size === relayUrls.size) {
+                machina.push(msg);
+              }
+            }
+            if (msg[0] === 'CLOSED') {
+              closes.add(url);
+              if (closes.size === relayUrls.size) {
+                machina.push(msg);
+              }
+            }
+            if (msg[0] === 'EVENT') {
               machina.push(msg);
             }
           }
-          if (msg[0] === 'CLOSED') {
-            closes.add(url);
-            if (closes.size === relayUrls.size) {
-              machina.push(msg);
-            }
-          }
-          if (msg[0] === 'EVENT') {
-            machina.push(msg);
-          }
-        }
-      })().catch(() => {});
+        })().catch(() => {});
+      }
     }
 
     try {
@@ -116,6 +135,14 @@ export class NPool implements NRelay {
   }
 
   async event(event: NostrEvent, opts?: { signal?: AbortSignal }): Promise<void> {
+    switch (event.kind) {
+      case 10002:
+        // 1 - get relays
+        // 2 - add to `userRelays`
+      case 3:
+        // same thing as above
+    }
+
     const relayUrls = await this.eventRelays(event);
 
     await Promise.any(
@@ -148,5 +175,11 @@ export class NPool implements NRelay {
     }
 
     return [...events];
+  }
+
+  static splitFilters(filters: NostrFilter[], userRelays: userRelays): filtersSplitted {
+    // analyze by author and split accordingly
+    console.log(filters, userRelays); // get rid of un-used variable
+    return [[], new Map()];
   }
 }
