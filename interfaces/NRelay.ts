@@ -10,3 +10,13 @@ export interface NRelay extends NStore {
     opts?: { signal?: AbortSignal },
   ): AsyncIterable<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED>;
 }
+
+type NRelayHint = {
+  score: number;
+  url: WebSocket['url'];
+};
+
+export type NRelayOutbox = {
+  read: NRelayHint;
+  write: NRelayHint;
+};
