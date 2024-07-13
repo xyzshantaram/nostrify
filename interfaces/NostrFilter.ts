@@ -17,3 +17,8 @@ export interface NostrFilter {
   /** A list of tag values, for #e — a list of event ids, for #p — a list of pubkeys, etc. */
   [key: `#${string}`]: string[] | undefined;
 }
+
+type fallbackFilters = NostrFilter[];
+type outboxFilters = Map<WebSocket['url'], NostrFilter[]>;
+
+export type filtersSplitted = [fallbackFilters, outboxFilters];
