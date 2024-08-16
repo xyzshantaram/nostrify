@@ -1,17 +1,15 @@
+import { PGlite } from '@electric-sql/pglite';
 import { NostrEvent, NostrFilter } from '@nostrify/types';
 import { assert, assertEquals, assertRejects } from '@std/assert';
+import { PgliteDialect } from '@soapbox/kysely-pglite';
 import { Kysely, LogConfig, LogEvent } from 'kysely';
-import { PostgresJSDialect } from 'kysely-postgres-js';
 import { finalizeEvent, generateSecretKey, matchFilters } from 'nostr-tools';
-import postgres from 'postgres';
 
 import { NPostgres, NPostgresOpts, NPostgresSchema } from './NPostgres.ts';
 
 import event0 from '../../fixtures/event-0.json' with { type: 'json' };
 import event1 from '../../fixtures/event-1.json' with { type: 'json' };
 import events from '../../fixtures/events.json' with { type: 'json' };
-
-const databaseUrl = Deno.env.get('DATABASE_URL');
 
 /** Kysely console logger. */
 const log: LogConfig = (event: LogEvent): void => {
@@ -25,9 +23,8 @@ async function createDB(
   opts?: NPostgresOpts,
 ): Promise<{ store: NPostgres; kysely: Kysely<NPostgresSchema>; [Symbol.asyncDispose]: () => Promise<void> }> {
   const kysely = new Kysely<NPostgresSchema>({
-    dialect: new PostgresJSDialect({
-      // @ts-ignore mismatched library versions
-      postgres: postgres(databaseUrl!),
+    dialect: new PgliteDialect({
+      database: new PGlite(),
     }),
     log,
   });
@@ -77,18 +74,18 @@ export function genEvent(t: Partial<NostrEvent> = {}, sk: Uint8Array = generateS
   return { id, kind, pubkey, tags, content, created_at, sig };
 }
 
-Deno.test('NPostgres.migrate', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.migrate', async () => {
   await using _db = await createDB();
 });
 
-Deno.test('NPostgres.migrate twice', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.migrate twice', async () => {
   await using db = await createDB();
   const { store } = db;
 
   await store.migrate();
 });
 
-Deno.test('NPostgres.count', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.count', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -97,7 +94,7 @@ Deno.test('NPostgres.count', { ignore: !databaseUrl }, async () => {
   assertEquals((await store.count([{ kinds: [1] }])).count, 1);
 });
 
-Deno.test('NPostgres.query', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.query', async () => {
   await using db = await createDB({ indexTags: ({ tags }) => tags });
   const { store } = db;
 
@@ -113,7 +110,7 @@ Deno.test('NPostgres.query', { ignore: !databaseUrl }, async () => {
   );
 });
 
-Deno.test('NPostgres.query with tag filters and limit', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.query with tag filters and limit', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -144,7 +141,7 @@ Deno.test('NPostgres.query with tag filters and limit', { ignore: !databaseUrl }
   assertEquals([...pubkeys], ['0461fcbecc4c3374439932d6b8f11269ccdb7cc973ad7a50ae362db135a474dd']);
 });
 
-Deno.test('NPostgres.query with multiple tags', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.query with multiple tags', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -169,7 +166,7 @@ Deno.test('NPostgres.query with multiple tags', { ignore: !databaseUrl }, async 
   assertEquals(results[0].tags.find(([name]) => name === 't')?.[1], 'bitcoin');
 });
 
-Deno.test('NPostgres.query with multiple tags and time window', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.query with multiple tags and time window', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -197,7 +194,7 @@ Deno.test('NPostgres.query with multiple tags and time window', { ignore: !datab
   assertEquals(results[0].tags.find(([name]) => name === 't')?.[1], 'bitcoin');
 });
 
-Deno.test('NPostgres.query with multiple tags and time window and limit', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.query with multiple tags and time window and limit', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -222,7 +219,7 @@ Deno.test('NPostgres.query with multiple tags and time window and limit', { igno
   assertEquals(results[0].tags.find(([name]) => name === 't')?.[1], 'bitcoin');
 });
 
-Deno.test('NPostgres.query tag query with non-tag query', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.query tag query with non-tag query', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -239,7 +236,7 @@ Deno.test('NPostgres.query tag query with non-tag query', { ignore: !databaseUrl
   assertEquals(results, []);
 });
 
-Deno.test('NPostgres.query with search', { ignore: !databaseUrl }, async (t) => {
+Deno.test('NPostgres.query with search', async (t) => {
   await using db = await createDB();
   const { store } = db;
 
@@ -259,7 +256,7 @@ Deno.test('NPostgres.query with search', { ignore: !databaseUrl }, async (t) => 
   });
 });
 
-Deno.test('NPostgres.query with search and fts disabled', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.query with search and fts disabled', async () => {
   await using db = await createDB({ indexSearch: () => undefined });
   const { store } = db;
 
@@ -268,7 +265,7 @@ Deno.test('NPostgres.query with search and fts disabled', { ignore: !databaseUrl
   assertEquals(await store.query([{ kinds: [1], search: 'vegan' }]), []);
 });
 
-Deno.test('NPostgres.query by id returns sorted results', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.query by id returns sorted results', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -295,7 +292,7 @@ Deno.test('NPostgres.query by id returns sorted results', { ignore: !databaseUrl
   assertEquals(results.map((event) => event.id), expected);
 });
 
-Deno.test('NPostgres.remove', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.remove', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -305,7 +302,7 @@ Deno.test('NPostgres.remove', { ignore: !databaseUrl }, async () => {
   assertEquals(await store.query([{ kinds: [1] }]), []);
 });
 
-Deno.test('NPostgres.remove with multiple filters', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.remove with multiple filters', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -320,7 +317,7 @@ Deno.test('NPostgres.remove with multiple filters', { ignore: !databaseUrl }, as
   assertEquals(await store.query([{}]), []);
 });
 
-Deno.test('NPostgres.event with a deleted event', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.event with a deleted event', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -345,7 +342,7 @@ Deno.test('NPostgres.event with a deleted event', { ignore: !databaseUrl }, asyn
   assertEquals(await store.query([{ kinds: [1] }]), []);
 });
 
-Deno.test('NPostgres.event with replaceable event', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.event with replaceable event', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -362,7 +359,7 @@ Deno.test('NPostgres.event with replaceable event', { ignore: !databaseUrl }, as
   assertEquals(await store.query([{ kinds: [0] }]), [changeEvent]);
 });
 
-Deno.test('NPostgres.event with parameterized replaceable event', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.event with parameterized replaceable event', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -384,7 +381,7 @@ Deno.test('NPostgres.event with parameterized replaceable event', { ignore: !dat
   assertEquals(await store.query([{ ids: [event2.id] }]), [event2]);
 });
 
-Deno.test('NPostgres.event processes deletions', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.event processes deletions', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -408,7 +405,7 @@ Deno.test('NPostgres.event processes deletions', { ignore: !databaseUrl }, async
   assertEquals(await store.query([{ kinds: [1] }]), [two]);
 });
 
-Deno.test('NPostgres.event with a replaceable deleted event', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.event with a replaceable deleted event', async () => {
   await using db = await createDB();
   const { store } = db;
   const sk = generateSecretKey();
@@ -438,7 +435,7 @@ Deno.test('NPostgres.event with a replaceable deleted event', { ignore: !databas
   assertEquals(await store.query([{ kinds: [0] }]), []);
 });
 
-Deno.test('NPostgres.event with a parameterized-replaceable deleted event', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.event with a parameterized-replaceable deleted event', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -466,7 +463,7 @@ Deno.test('NPostgres.event with a parameterized-replaceable deleted event', { ig
   assertEquals(await store.query([{ ids: [eventC.id] }]), [eventC]);
 });
 
-Deno.test("NPostgres.event does not delete another user's event", { ignore: !databaseUrl }, async () => {
+Deno.test("NPostgres.event does not delete another user's event", async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -484,7 +481,7 @@ Deno.test("NPostgres.event does not delete another user's event", { ignore: !dat
   assertEquals(await store.query([{ kinds: [1] }]), [event]);
 });
 
-Deno.test('NPostgres.transaction', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.transaction', async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -498,7 +495,7 @@ Deno.test('NPostgres.transaction', { ignore: !databaseUrl }, async () => {
 });
 
 // When `statement_timeout` is 0 it's disabled, so we need to create slow queries.
-Deno.test('NPostgres timeout', { ignore: !databaseUrl }, async (t) => {
+Deno.test('NPostgres timeout', async (t) => {
   await using db = await createDB();
 
   const { store } = db;
@@ -520,7 +517,7 @@ Deno.test('NPostgres timeout', { ignore: !databaseUrl }, async (t) => {
           }, generateSecretKey()),
           { timeout: 1 },
         ),
-      postgres.PostgresError,
+      Error,
       'canceling statement due to statement timeout',
     );
   });
@@ -535,7 +532,7 @@ Deno.test('NPostgres timeout', { ignore: !databaseUrl }, async (t) => {
   await t.step('Slow query', async () => {
     await assertRejects(
       () => db.store.query(slowFilters, { timeout: 1 }),
-      postgres.PostgresError,
+      Error,
       'canceling statement due to statement timeout',
     );
   });
@@ -543,7 +540,7 @@ Deno.test('NPostgres timeout', { ignore: !databaseUrl }, async (t) => {
   await t.step('Slow count', async () => {
     await assertRejects(
       () => db.store.count(slowFilters, { timeout: 1 }),
-      postgres.PostgresError,
+      Error,
       'canceling statement due to statement timeout',
     );
   });
@@ -555,7 +552,7 @@ Deno.test('NPostgres timeout', { ignore: !databaseUrl }, async (t) => {
   await t.step('Slow remove', async () => {
     await assertRejects(
       () => db.store.remove(slowFilters, { timeout: 1 }),
-      postgres.PostgresError,
+      Error,
       'canceling statement due to statement timeout',
     );
   });
@@ -565,7 +562,7 @@ Deno.test('NPostgres timeout', { ignore: !databaseUrl }, async (t) => {
   });
 });
 
-Deno.test('NPostgres.req streams events', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.req streams events', async () => {
   await using db = await createDB();
   const { store } = db;
 
