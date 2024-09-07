@@ -1,6 +1,6 @@
 import { NKinds } from '@nostrify/nostrify';
 import { NostrEvent, NostrFilter, NostrRelayCLOSED, NostrRelayEOSE, NostrRelayEVENT, NRelay } from '@nostrify/types';
-import { Kysely, type SelectQueryBuilder, sql } from 'kysely';
+import { ColumnType, InsertObject, Kysely, Selectable, type SelectQueryBuilder, sql } from 'kysely';
 import { getFilterLimit } from 'nostr-tools';
 
 /** Kysely database schema for Nostr. */
@@ -11,8 +11,8 @@ export interface NPostgresSchema {
     pubkey: string;
     content: string;
     created_at: number | bigint;
-    tags: string[][];
-    tags_index: Record<string, string[]>;
+    tags: ColumnType<string[][], string, string>;
+    tags_index: ColumnType<Record<string, string[]>, string, string>;
     sig: string;
     d: string | null;
     search: unknown;
@@ -39,7 +39,7 @@ export interface NPostgresOpts {
 type SelectEventsQuery = SelectQueryBuilder<
   NPostgresSchema,
   'nostr_events',
-  Pick<NPostgresSchema['nostr_events'], keyof NostrEvent>
+  Pick<Selectable<NPostgresSchema['nostr_events']>, keyof NostrEvent>
 >;
 
 export class NPostgres implements NRelay {
@@ -163,9 +163,10 @@ export class NPostgres implements NRelay {
 
     const searchText = this.indexSearch(event);
 
-    const row: NPostgresSchema['nostr_events'] = {
+    const row: InsertObject<NPostgresSchema, 'nostr_events'> = {
       ...event,
-      tags_index: tagIndex,
+      tags: JSON.stringify(event.tags),
+      tags_index: JSON.stringify(tagIndex),
       search: searchText ? sql`to_tsvector(${searchText})` : null,
       d: parameterized ? d ?? '' : null,
     };
@@ -330,7 +331,7 @@ export class NPostgres implements NRelay {
   }
 
   /** Parse an event row from the database. */
-  private static parseEventRow(row: Pick<NPostgresSchema['nostr_events'], keyof NostrEvent>): NostrEvent {
+  private static parseEventRow(row: Pick<Selectable<NPostgresSchema['nostr_events']>, keyof NostrEvent>): NostrEvent {
     return {
       id: row.id,
       kind: row.kind,
