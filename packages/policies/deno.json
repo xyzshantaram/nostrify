@@ -2,6 +2,7 @@
   "name": "@nostrify/policies",
   "version": "0.36.1",
   "exports": {
-    ".": "./mod.ts"
+    ".": "./mod.ts",
+    "./strfry": "./strfry.ts"
   }
 }
