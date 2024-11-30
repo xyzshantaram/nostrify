@@ -1,6 +1,8 @@
 // deno-lint-ignore-file require-await
 
-import { finalizeEvent, getPublicKey, nip04, nip44 } from 'nostr-tools';
+import { schnorr } from '@noble/curves/secp256k1';
+import { encodeHex } from '@std/encoding/hex';
+import { getEventHash, getPublicKey, nip04, nip44 } from 'nostr-tools';
 
 import { NostrEvent } from '@nostrify/types';
 import { NostrSigner } from '@nostrify/types';
@@ -29,7 +31,12 @@ export class NSecSigner implements NostrSigner {
   }
 
   async signEvent(event: Omit<NostrEvent, 'id' | 'pubkey' | 'sig'>): Promise<NostrEvent> {
-    return finalizeEvent(event, this.#secretKey);
+    const pubkey = await this.getPublicKey();
+
+    const id = getEventHash({ ...event, pubkey });
+    const sig = encodeHex(schnorr.sign(id, this.#secretKey));
+
+    return { ...event, id, pubkey, sig };
   }
 
   readonly nip04 = {

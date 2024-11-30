@@ -24,6 +24,10 @@ Deno.bench('NSecSigner.signEvent', async (b) => {
   await signer.signEvent({ kind: 1, content: 'Hello, world!', tags: [], created_at: 0 });
 });
 
+Deno.bench('NSecSigner.signEvent with a fixed secret key', async () => {
+  await FIXED_SIGNER.signEvent({ kind: 1, content: 'Hello, world!', tags: [], created_at: 0 });
+});
+
 Deno.bench('NSecSigner.nip04.encrypt', async (b) => {
   const signer = new NSecSigner(generateSecretKey());
   const pubkey = await signer.getPublicKey();
