@@ -21,6 +21,7 @@ import {
   NostrRelayNOTICE,
   NostrRelayOK,
 } from '@nostrify/types';
+import { NKinds } from './mod.ts';
 
 /**
  * A suite of [zod](https://github.com/colinhacks/zod) schemas for Nostr.
@@ -176,6 +177,21 @@ class NSchema {
       NSchema.relayAUTH(),
       NSchema.relayCOUNT(),
     ]);
+  }
+
+  static addr(): z.ZodType<{ kind: number; pubkey: string; d?: string }, z.ZodTypeDef, string> {
+    return z.string()
+      .transform((value) => value.split(':') as Array<string | undefined>)
+      .pipe(z.tuple([
+        z.coerce.number().int().nonnegative(),
+        NSchema.id(),
+        z.string().optional(),
+      ]))
+      .transform(([kind, pubkey, d]) => ({ kind, pubkey, d }))
+      .refine(
+        ({ kind, d }) => !NKinds.parameterizedReplaceable(kind) || typeof d === 'string',
+        'Parameterized kinds must have a value',
+      );
   }
 
   /** Kind 0 content schema. */

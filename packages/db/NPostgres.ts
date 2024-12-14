@@ -1,4 +1,4 @@
-import { NKinds } from '@nostrify/nostrify';
+import { NKinds, NSchema as n } from '@nostrify/nostrify';
 import { NostrEvent, NostrFilter, NostrRelayCLOSED, NostrRelayEOSE, NostrRelayEVENT, NRelay } from '@nostrify/types';
 import { Kysely, type SelectQueryBuilder, sql } from 'kysely';
 import { getFilterLimit } from 'nostr-tools';
@@ -103,45 +103,50 @@ export class NPostgres implements NRelay {
       });
     }
 
-    const events = await this.query(filters);
-    return events.length > 0;
+    for (const filter of filters) {
+      const events = await this.query(filter);
+
+      if (events.length > 0) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /** Delete events referenced by kind 5. */
   protected async deleteEvents(db: Kysely<NPostgresSchema>, event: NostrEvent): Promise<void> {
     if (event.kind === 5) {
-      const ids = new Set(event.tags.filter(([name]) => name === 'e').map(([_name, value]) => value));
-      const addrs = new Set(event.tags.filter(([name]) => name === 'a').map(([_name, value]) => value));
+      const filter = { ids: [] as string[], authors: [event.pubkey] };
+      const filters: NostrFilter[] = [filter];
 
-      const filters: NostrFilter[] = [];
-
-      if (ids.size) {
-        filters.push({ ids: [...ids], authors: [event.pubkey] });
-      }
-
-      for (const addr of addrs) {
-        const [k, pubkey, d] = addr.split(':');
-        const kind = Number(k);
-
-        if (pubkey !== event.pubkey) continue;
-        if (!(Number.isInteger(kind) && kind >= 0)) continue;
-        if (d === undefined) continue;
-
-        const filter: NostrFilter = {
-          kinds: [kind],
-          authors: [event.pubkey],
-          until: event.created_at,
-        };
-
-        if (d) {
-          filter['#d'] = [d];
+      for (const [name, value] of event.tags) {
+        if (name === 'e') {
+          filter.ids.push(value);
         }
 
-        filters.push(filter);
+        if (name === 'a') {
+          const result = n.addr().refine(({ pubkey }) => pubkey === event.pubkey).safeParse(value);
+          if (!result.success) continue;
+
+          const { kind, d } = result.data;
+
+          const filter: NostrFilter = {
+            kinds: [kind],
+            authors: [event.pubkey],
+            until: event.created_at,
+          };
+
+          if (d) {
+            filter['#d'] = [d];
+          }
+
+          filters.push(filter);
+        }
       }
 
-      if (filters.length) {
-        await this.removeEvents(db, filters);
+      for (const filter of filters) {
+        await this.removeEvents(db, filter);
       }
     }
   }
@@ -211,7 +216,7 @@ export class NPostgres implements NRelay {
   }
 
   /** Build the query for a filter. */
-  protected getFilterQuery(trx: Kysely<NPostgresSchema>, filter: NostrFilter): SelectEventsQuery {
+  protected getEventsQuery(trx: Kysely<NPostgresSchema>, filter: NostrFilter): SelectEventsQuery {
     let query = trx
       .selectFrom('nostr_events')
       .selectAll('nostr_events')
@@ -261,16 +266,6 @@ export class NPostgres implements NRelay {
     return query;
   }
 
-  /** Combine filter queries into a single union query. */
-  protected getEventsQuery(trx: Kysely<NPostgresSchema>, filters: NostrFilter[]): SelectEventsQuery {
-    return trx.selectFrom((eb) =>
-      filters
-        .map((filter) => eb.selectFrom(() => this.getFilterQuery(trx, filter).as('e')).selectAll())
-        .reduce((result, query) => result.unionAll(query)).as('e')
-    )
-      .selectAll() as SelectEventsQuery;
-  }
-
   /**
    * Stream events, mimicking a relay.
    *
@@ -282,23 +277,27 @@ export class NPostgres implements NRelay {
    * If the signal is aborted, it will yield `CLOSED` on the next iteration.
    */
   async *req(
-    filters: NostrFilter[],
+    filter: NostrFilter,
     opts?: { signal?: AbortSignal },
   ): AsyncIterable<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED> {
     const subId = crypto.randomUUID();
-    filters = this.normalizeFilters(filters);
+    filter = this.normalizeFilter(filter);
 
-    if (filters.length) {
-      const rows = this.getEventsQuery(this.db, filters).stream(this.chunkSize);
+    if (filter.limit === 0) {
+      yield ['EOSE', subId];
+      yield ['CLOSED', subId, 'finished'];
+      return;
+    }
 
-      for await (const row of rows) {
-        const event = this.parseEventRow(row);
-        yield ['EVENT', subId, event];
+    const rows = this.getEventsQuery(this.db, filter).stream(this.chunkSize);
 
-        if (opts?.signal?.aborted) {
-          yield ['CLOSED', subId, 'aborted'];
-          return;
-        }
+    for await (const row of rows) {
+      const event = this.parseEventRow(row);
+      yield ['EVENT', subId, event];
+
+      if (opts?.signal?.aborted) {
+        yield ['CLOSED', subId, 'aborted'];
+        return;
       }
     }
 
@@ -308,17 +307,17 @@ export class NPostgres implements NRelay {
 
   /** Get events for filters from the database. */
   async query(
-    filters: NostrFilter[],
+    filter: NostrFilter,
     opts: { timeout?: number; signal?: AbortSignal; limit?: number } = {},
   ): Promise<NostrEvent[]> {
-    filters = this.normalizeFilters(filters);
+    filter = this.normalizeFilter(filter);
 
-    if (!filters.length) {
+    if (filter.limit === 0) {
       return [];
     }
 
     return await this.withTimeout(this.db, async (trx) => {
-      let query = this.getEventsQuery(trx, filters);
+      let query = this.getEventsQuery(trx, filter);
 
       if (typeof opts.limit === 'number') {
         query = query.limit(opts.limit);
@@ -342,36 +341,43 @@ export class NPostgres implements NRelay {
   }
 
   /** Normalize the `limit` of each filter, and remove filters that can't produce any events. */
-  protected normalizeFilters(filters: NostrFilter[]): NostrFilter[] {
-    return filters.reduce<NostrFilter[]>((acc, filter) => {
-      const limit = getFilterLimit(filter);
-      if (limit > 0) {
-        acc.push(limit === Infinity ? filter : { ...filter, limit });
-      }
-      return acc;
-    }, []);
+  protected normalizeFilter(filter: NostrFilter): NostrFilter {
+    const limit = getFilterLimit(filter);
+    if (limit > 0) {
+      return limit === Infinity ? filter : { ...filter, limit };
+    } else {
+      return filter;
+    }
   }
 
   /** Remove events from the database. */
-  protected async removeEvents(db: Kysely<NPostgresSchema>, filters: NostrFilter[]): Promise<void> {
+  protected async removeEvents(db: Kysely<NPostgresSchema>, filter: NostrFilter): Promise<void> {
     await db
       .deleteFrom('nostr_events')
-      .where('id', 'in', () => this.getEventsQuery(db, filters).clearSelect().select('id'))
+      .where('id', 'in', this.getEventsQuery(db, filter).clearSelect().select('id'))
       .execute();
   }
 
   /** Delete events based on filters from the database. */
-  async remove(filters: NostrFilter[], opts: { signal?: AbortSignal; timeout?: number } = {}): Promise<void> {
-    await this.withTimeout(this.db, (trx) => this.removeEvents(trx, filters), opts.timeout);
+  async remove(filter: NostrFilter, opts: { signal?: AbortSignal; timeout?: number } = {}): Promise<void> {
+    filter = this.normalizeFilter(filter);
+    if (filter.limit === 0) return;
+    await this.withTimeout(this.db, (trx) => this.removeEvents(trx, filter), opts.timeout);
   }
 
   /** Get number of events that would be returned by filters. */
   async count(
-    filters: NostrFilter[],
+    filter: NostrFilter,
     opts: { signal?: AbortSignal; timeout?: number } = {},
   ): Promise<{ count: number; approximate: boolean }> {
+    filter = this.normalizeFilter(filter);
+
+    if (filter.limit === 0) {
+      return { count: 0, approximate: false };
+    }
+
     return await this.withTimeout(this.db, async (trx) => {
-      const query = this.getEventsQuery(trx, filters);
+      const query = this.getEventsQuery(trx, filter);
       const [{ count }] = await query
         .clearSelect()
         .clearOrderBy()
