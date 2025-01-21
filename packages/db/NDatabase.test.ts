@@ -365,7 +365,7 @@ Deno.test('NDatabase.event with replaceable event', async () => {
   assertEquals(await store.query([{ kinds: [0] }]), [changeEvent]);
 });
 
-Deno.test('NDatabase.event with parameterized replaceable event', async () => {
+Deno.test('NDatabase.event with addressable event', async () => {
   await using db = await createDB();
   const { store } = db;
 

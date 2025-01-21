@@ -366,7 +366,7 @@ Deno.test('NPostgres.event with replaceable event', { ignore: !databaseUrl }, as
   assertEquals(await store.query([{ kinds: [0] }]), [changeEvent]);
 });
 
-Deno.test('NPostgres.event with parameterized replaceable event', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.event with addressable event', { ignore: !databaseUrl }, async () => {
   await using db = await createDB();
   const { store } = db;
 

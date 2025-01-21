@@ -110,8 +110,25 @@ class NSet implements Set<NostrEvent> {
     return [0, 3].includes(kind) || (10000 <= kind && kind < 20000);
   }
 
-  /** Event kind is **parameterized replaceable**, which means that, for each combination of `pubkey`, `kind` and the `d` tag, only the latest event is expected to be stored by relays, older versions are expected to be discarded. */
+  /**
+   * Event kind is **addressable**, which means that, for each
+   * combination of `pubkey`, `kind` and the `d` tag, only the latest
+   * event is expected to be stored by relays, older versions are expected to
+   * be discarded.
+   *
+   * @deprecated Use `isAddressable` instead.
+   */
   protected static isParameterizedReplaceable(kind: number): boolean {
+    return 30000 <= kind && kind < 40000;
+  }
+
+  /**
+   * Event kind is **addressable**, which means that, for each
+   * combination of `pubkey`, `kind` and the `d` tag, only the latest
+   * event is expected to be stored by relays, older versions are expected to
+   * be discarded.
+   */
+  protected static isAddressable(kind: number): boolean {
     return 30000 <= kind && kind < 40000;
   }
 
@@ -127,7 +144,7 @@ class NSet implements Set<NostrEvent> {
       return kind === target.kind && pubkey === target.pubkey && NSet.sortEvents([event, target])[0] === event;
     }
 
-    if (NSet.isParameterizedReplaceable(kind)) {
+    if (NSet.isAddressable(kind)) {
       const d1 = event.tags.find(([name]) => name === 'd')?.[1] || '';
       const d2 = target.tags.find(([name]) => name === 'd')?.[1] || '';
 

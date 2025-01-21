@@ -132,7 +132,7 @@ Deno.bench('NDatabase.query replaceable event by author', async () => {
   }]);
 });
 
-Deno.bench('NDatabase.query parameterized replaceable event by author', async () => {
+Deno.bench('NDatabase.query addressable event by author', async () => {
   await db.query([{
     kinds: [30078],
     authors: ['bac7a8b8b0bb6b4194969254a5223a1f13b8d01c5bd18f65d5cefc41525ae54f'],

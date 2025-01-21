@@ -131,7 +131,7 @@ export class NPool<T extends NRelay> implements NRelay {
     if (limit === 0) return [];
 
     const replaceable = filters.reduce((result, filter) => {
-      return result || !!filter.kinds?.some((k) => NKinds.replaceable(k) || NKinds.parameterizedReplaceable(k));
+      return result || !!filter.kinds?.some((k) => NKinds.replaceable(k) || NKinds.addressable(k));
     }, false);
 
     try {

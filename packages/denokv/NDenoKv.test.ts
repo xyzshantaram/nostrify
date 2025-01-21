@@ -126,7 +126,7 @@ Deno.test('NDenoKv.event with replaceable event', async (t) => {
   });
 });
 
-Deno.test('NDenoKv.event with parameterized replaceable event', async (t) => {
+Deno.test('NDenoKv.event with addressable event', async (t) => {
   await withDB(async (db) => {
     const [event0, event1, event2] = PR_EVENTS;
 

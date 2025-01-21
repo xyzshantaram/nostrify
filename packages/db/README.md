@@ -6,7 +6,7 @@ Full documentation: https://nostrify.dev/store/sql
 
 ## Postgres
 
-The `NPostgres` class is specialized for high performance in Postgres, making use of jsonb for tag queries and FTS for NIP-50 search. It contains a single `nostr_events` table with unique indexes for replaceable and parameterized replaceable events, upserting newer entries for the best performance. This implementation is used by Ditto in production and is the recommended database adapter.
+The `NPostgres` class is specialized for high performance in Postgres, making use of jsonb for tag queries and FTS for NIP-50 search. It contains a single `nostr_events` table with unique indexes for replaceable and addressable events, upserting newer entries for the best performance. This implementation is used by Ditto in production and is the recommended database adapter.
 
 ## SQLite, MySQL, and others
 

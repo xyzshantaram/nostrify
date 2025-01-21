@@ -91,7 +91,7 @@ export class NPostgres implements NRelay {
       { kinds: [5], authors: [event.pubkey], '#e': [event.id], limit: 1 },
     ];
 
-    if (NKinds.replaceable(event.kind) || NKinds.parameterizedReplaceable(event.kind)) {
+    if (NKinds.replaceable(event.kind) || NKinds.addressable(event.kind)) {
       const d = event.tags.find(([name]) => name === 'd')?.[1] ?? '';
 
       filters.push({
@@ -151,7 +151,7 @@ export class NPostgres implements NRelay {
     const d = event.tags.find(([name]) => name === 'd')?.[1];
 
     const replaceable = NKinds.replaceable(event.kind);
-    const parameterized = NKinds.parameterizedReplaceable(event.kind);
+    const addressable = NKinds.addressable(event.kind);
 
     const tagIndex = this.indexTags(event).reduce((result, [name, value]) => {
       if (!result[name]) {
@@ -167,10 +167,10 @@ export class NPostgres implements NRelay {
       ...event,
       tags_index: tagIndex,
       search: searchText ? sql`to_tsvector(${searchText})` : null,
-      d: parameterized ? d ?? '' : null,
+      d: addressable ? d ?? '' : null,
     };
 
-    if (replaceable || parameterized) {
+    if (replaceable || addressable) {
       await trx.insertInto('nostr_events')
         .values(row)
         .onConflict((oc) =>
@@ -244,7 +244,7 @@ export class NPostgres implements NRelay {
       if (key.startsWith('#') && Array.isArray(values)) {
         const name = key.replace(/^#/, '');
 
-        if (name === 'd' && filter.kinds?.every((kind) => NKinds.parameterizedReplaceable(kind))) {
+        if (name === 'd' && filter.kinds?.every((kind) => NKinds.addressable(kind))) {
           query = query.where('d', '=', ({ fn, val }) => fn.any(val(values)));
         } else {
           query = query.where((eb) =>
