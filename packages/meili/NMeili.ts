@@ -16,7 +16,7 @@ export interface NMeiliOpts {
 }
 
 interface NEventDoc extends NostrEvent {
-  pk: string;
+  addr?: string;
   tagsIndex: string[];
 }
 
@@ -31,9 +31,9 @@ export class NMeili implements NRelay {
   }
 
   async event(event: NostrEvent, _opts?: { signal?: AbortSignal }): Promise<void> {
-    const pk = this.pk(event);
+    const addr = this.addr(event);
     const tagsIndex: string[] = event.tags.map(([name, value]) => `${name}:${value}`);
-    const task = await this.index.addDocuments([{ ...event, tagsIndex, pk }]);
+    const task = await this.index.addDocuments([{ ...event, tagsIndex, addr }]);
     await this.client.waitForTask(task.taskUid);
   }
 
@@ -70,6 +70,7 @@ export class NMeili implements NRelay {
         filter: meiliFilters,
         sort: ['created_at:desc', 'id:asc'],
         limit: filter.limit,
+        distinct: 'addr',
       });
 
       for (const hit of hits) {
@@ -89,8 +90,8 @@ export class NMeili implements NRelay {
     throw new Error('Method not implemented.');
   }
 
-  pk(event: NostrEvent): string {
-    const { id, kind, pubkey, tags } = event;
+  addr(event: NostrEvent): string | undefined {
+    const { kind, pubkey, tags } = event;
 
     if (NKinds.replaceable(kind)) {
       return [kind, pubkey, ''].join(':');
@@ -100,8 +101,6 @@ export class NMeili implements NRelay {
       const d = tags.find(([name]) => name === 'd')?.[1];
       return [kind, pubkey, d].join(':');
     }
-
-    return id;
   }
 
   get index(): Index<NEventDoc> {
@@ -114,8 +113,10 @@ export class NMeili implements NRelay {
 
     const tasks: EnqueuedTask[] = [];
 
-    tasks.push(await this.client.createIndex(uid, { primaryKey: 'pk' }));
-    tasks.push(await this.index.updateFilterableAttributes(['id', 'kind', 'pubkey', 'created_at', 'tagsIndex']));
+    tasks.push(await this.client.createIndex(uid, { primaryKey: 'id' }));
+    tasks.push(
+      await this.index.updateFilterableAttributes(['id', 'kind', 'pubkey', 'created_at', 'addr', 'tagsIndex']),
+    );
     tasks.push(await this.index.updateSortableAttributes(['created_at', 'id']));
 
     await this.client.waitForTasks(tasks.map((task) => task.taskUid));
