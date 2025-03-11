@@ -15,6 +15,11 @@ export interface NMeiliOpts {
   uid?: string;
 }
 
+interface NEventDoc extends NostrEvent {
+  pk: string;
+  tagsIndex: string[];
+}
+
 export class NMeili implements NRelay {
   constructor(private client: MeiliSearch, private opts: NMeiliOpts = {}) {}
 
@@ -27,7 +32,8 @@ export class NMeili implements NRelay {
 
   async event(event: NostrEvent, _opts?: { signal?: AbortSignal }): Promise<void> {
     const pk = this.pk(event);
-    const task = await this.index.addDocuments([{ ...event, pk }]);
+    const tagsIndex: string[] = event.tags.map(([name, value]) => `${name}:${value}`);
+    const task = await this.index.addDocuments([{ ...event, tagsIndex, pk }]);
     await this.client.waitForTask(task.taskUid);
   }
 
@@ -53,8 +59,15 @@ export class NMeili implements NRelay {
         meiliFilters.push(`created_at <= ${filter.until}`);
       }
 
+      for (const [key, values] of Object.entries(filter)) {
+        if (key.startsWith('#') && Array.isArray(values)) {
+          const name = key.replace(/^#/, '');
+          meiliFilters.push(`tagsIndex IN ${JSON.stringify(values.map((value) => `${name}:${value}`))}`);
+        }
+      }
+
       const { hits } = await this.index.search(filter.search, {
-        filter: meiliFilters.join(' AND '),
+        filter: meiliFilters,
         sort: ['created_at:desc', 'id:asc'],
         limit: filter.limit,
       });
@@ -91,9 +104,9 @@ export class NMeili implements NRelay {
     return id;
   }
 
-  get index(): Index<NostrEvent & { pk: string }> {
+  get index(): Index<NEventDoc> {
     const { uid = 'nostr_events' } = this.opts;
-    return this.client.index<NostrEvent>(uid);
+    return this.client.index<NEventDoc>(uid);
   }
 
   async migrate(): Promise<void> {
@@ -102,7 +115,7 @@ export class NMeili implements NRelay {
     const tasks: EnqueuedTask[] = [];
 
     tasks.push(await this.client.createIndex(uid, { primaryKey: 'pk' }));
-    tasks.push(await this.index.updateFilterableAttributes(['id', 'kind', 'pubkey', 'created_at']));
+    tasks.push(await this.index.updateFilterableAttributes(['id', 'kind', 'pubkey', 'created_at', 'tagsIndex']));
     tasks.push(await this.index.updateSortableAttributes(['created_at', 'id']));
 
     await this.client.waitForTasks(tasks.map((task) => task.taskUid));
