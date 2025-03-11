@@ -1,4 +1,4 @@
-import { NKinds, NSet } from '@nostrify/nostrify';
+import { NKinds } from '@nostrify/nostrify';
 import { type EnqueuedTask, type Index, MeiliSearch } from 'meilisearch';
 
 import type {
@@ -32,27 +32,40 @@ export class NMeili implements NRelay {
   }
 
   async query(filters: NostrFilter[], _opts?: { signal?: AbortSignal }): Promise<NostrEvent[]> {
-    const events = new NSet();
+    const events: NostrEvent[] = [];
 
     for (const filter of filters) {
       const meiliFilters: string[] = [];
 
+      if (filter.ids) {
+        meiliFilters.push(`id IN ${JSON.stringify(filter.ids)}`);
+      }
       if (filter.kinds) {
         meiliFilters.push(`kind IN ${JSON.stringify(filter.kinds)}`);
       }
+      if (filter.authors) {
+        meiliFilters.push(`pubkey IN ${JSON.stringify(filter.authors)}`);
+      }
+      if (typeof filter.since === 'number') {
+        meiliFilters.push(`created_at >= ${filter.since}`);
+      }
+      if (typeof filter.until === 'number') {
+        meiliFilters.push(`created_at <= ${filter.until}`);
+      }
 
-      const { hits } = await this.index.search(undefined, {
+      const { hits } = await this.index.search(filter.search, {
         filter: meiliFilters.join(' AND '),
+        sort: ['created_at:desc', 'id:asc'],
         limit: filter.limit,
       });
 
       for (const hit of hits) {
         const { id, kind, pubkey, content, tags, created_at, sig } = hit;
-        events.add({ id, kind, pubkey, content, tags, created_at, sig });
+        events.push({ id, kind, pubkey, content, tags, created_at, sig });
       }
     }
 
-    return [...events];
+    return events;
   }
 
   count(_filters: NostrFilter[], _opts?: { signal?: AbortSignal }): Promise<NostrRelayCOUNT[2]> {
@@ -89,7 +102,8 @@ export class NMeili implements NRelay {
     const tasks: EnqueuedTask[] = [];
 
     tasks.push(await this.client.createIndex(uid, { primaryKey: 'pk' }));
-    tasks.push(await this.index.updateFilterableAttributes(['kind', 'pubkey', 'created_at']));
+    tasks.push(await this.index.updateFilterableAttributes(['id', 'kind', 'pubkey', 'created_at']));
+    tasks.push(await this.index.updateSortableAttributes(['created_at', 'id']));
 
     await this.client.waitForTasks(tasks.map((task) => task.taskUid));
   }

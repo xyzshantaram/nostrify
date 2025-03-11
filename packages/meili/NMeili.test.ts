@@ -1,6 +1,7 @@
 import { genEvent } from '@nostrify/nostrify/test';
 import { assertEquals } from '@std/assert';
 import { MeiliSearch } from 'meilisearch';
+import { generateSecretKey, getPublicKey } from 'nostr-tools';
 
 import { NMeili } from './NMeili.ts';
 
@@ -22,4 +23,23 @@ Deno.test('NMeili', async (t) => {
     assertEquals(events.length, 1);
     assertEquals(events[0].content, 'hello world!');
   });
+});
+
+Deno.test('NMeili.query by pubkey', async () => {
+  const client = new MeiliSearch({ host: 'http://localhost:7700' });
+  const relay = new NMeili(client);
+
+  await client.deleteIndexIfExists('nostr_events');
+  await relay.migrate();
+
+  const sk = generateSecretKey();
+  const pubkey = getPublicKey(sk);
+
+  await relay.event(genEvent({ kind: 1, content: 'spaghetti' }, sk));
+  await relay.event(genEvent({ kind: 1, content: 'eggplant' }));
+
+  const events = await relay.query([{ authors: [pubkey] }]);
+
+  assertEquals(events.length, 1);
+  assertEquals(events[0].content, 'spaghetti');
 });
