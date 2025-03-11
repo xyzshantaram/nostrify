@@ -17,7 +17,7 @@ export interface NMeiliOpts {
 
 interface NEventDoc extends NostrEvent {
   addr?: string;
-  tagsIndex: string[];
+  tags_index: string[];
 }
 
 export class NMeili implements NRelay {
@@ -31,9 +31,12 @@ export class NMeili implements NRelay {
   }
 
   async event(event: NostrEvent, _opts?: { signal?: AbortSignal }): Promise<void> {
-    const addr = this.addr(event);
-    const tagsIndex: string[] = event.tags.map(([name, value]) => `${name}:${value}`);
-    const task = await this.index.addDocuments([{ ...event, tagsIndex, addr }]);
+    const task = await this.index.addDocuments([{
+      ...event,
+      addr: this.addr(event),
+      tags_index: event.tags.map(([name, value]) => `${name}:${value}`),
+    }]);
+
     await this.client.waitForTask(task.taskUid);
   }
 
@@ -62,7 +65,7 @@ export class NMeili implements NRelay {
       for (const [key, values] of Object.entries(filter)) {
         if (key.startsWith('#') && Array.isArray(values)) {
           const name = key.replace(/^#/, '');
-          meiliFilters.push(`tagsIndex IN ${JSON.stringify(values.map((value) => `${name}:${value}`))}`);
+          meiliFilters.push(`tags_index IN ${JSON.stringify(values.map((value) => `${name}:${value}`))}`);
         }
       }
 
@@ -114,10 +117,10 @@ export class NMeili implements NRelay {
     const tasks: EnqueuedTask[] = [];
 
     tasks.push(await this.client.createIndex(uid, { primaryKey: 'id' }));
-    tasks.push(
-      await this.index.updateFilterableAttributes(['id', 'kind', 'pubkey', 'created_at', 'addr', 'tagsIndex']),
-    );
     tasks.push(await this.index.updateSortableAttributes(['created_at', 'id']));
+    tasks.push(
+      await this.index.updateFilterableAttributes(['id', 'kind', 'pubkey', 'created_at', 'addr', 'tags_index']),
+    );
 
     await this.client.waitForTasks(tasks.map((task) => task.taskUid));
   }
