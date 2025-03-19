@@ -63,14 +63,14 @@ export class NPostgres implements NRelay {
   private chunkSize: number;
   private ee = new EventTarget();
 
-  constructor(db: Kysely<any>, private opts?: NPostgresOpts) {
+  constructor(db: Kysely<any>, opts?: NPostgresOpts) {
     this.db = db as Kysely<NPostgresSchema>;
     this.indexTags = opts?.indexTags ?? NPostgres.indexTags;
     this.indexSearch = opts?.indexSearch ?? NPostgres.indexSearch;
     this.indexExtensions = opts?.indexExtensions ?? (() => ({}));
     this.chunkSize = opts?.chunkSize ?? 20;
 
-    // sql`truncate table nostr_subscriptions`.execute(this.db);
+    sql`truncate table nostr_subscriptions`.execute(this.db).catch(() => {});
 
     opts?.listen?.('nostr_event', async (payload) => {
       const { id } = JSON.parse(payload);
