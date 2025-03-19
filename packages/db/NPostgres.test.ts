@@ -752,32 +752,119 @@ Deno.test('NPostgres.req', { ignore: !databaseUrl }, async () => {
   assertEquals(expected, results);
 });
 
-Deno.test('NPostgres.req streams events in realtime', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.req streams events in realtime', { ignore: !databaseUrl }, async (t) => {
   const controller = new AbortController();
   await using db = await createDB();
   const { store } = db;
 
-  const results: NostrEvent[] = [];
+  await t.step('match authors', async () => {
+    const results: NostrEvent[] = [];
 
-  (async () => {
-    for await (const msg of store.req([{ kinds: [0] }], { signal: controller.signal })) {
-      if (msg[0] === 'EVENT') {
-        results.push(msg[2]);
+    (async () => {
+      for await (const msg of store.req([{ kinds: [0] }], { signal: controller.signal })) {
+        if (msg[0] === 'EVENT') {
+          results.push(msg[2]);
+        }
       }
-    }
-  })();
+    })();
 
-  const kind0 = genEvent({ kind: 0 });
-  await store.event(kind0);
+    const kind0 = genEvent({ kind: 0 });
+    await store.event(kind0);
 
-  await waitFor(() => {
-    try {
-      assertEquals(results, [kind0]);
-      return true;
-    } catch {
-      return false;
-    }
-  }, 3000);
+    await waitFor(() => {
+      try {
+        assertEquals(results, [kind0]);
+        return true;
+      } catch {
+        return false;
+      }
+    }, 3000);
+  });
+
+  await t.step('match kind', async () => {
+    const results: NostrEvent[] = [];
+
+    (async () => {
+      for await (const msg of store.req([{ kinds: [1] }], { signal: controller.signal })) {
+        if (msg[0] === 'EVENT') {
+          results.push(msg[2]);
+        }
+      }
+    })();
+
+    const kind1 = genEvent({ kind: 1 });
+    await store.event(kind1);
+
+    await waitFor(() => {
+      try {
+        assertEquals(results, [kind1]);
+        return true;
+      } catch {
+        return false;
+      }
+    }, 3000);
+  });
+
+  await t.step('match kinds & authors', async () => {
+    const results: NostrEvent[] = [];
+
+    const kind1 = genEvent({ kind: 1 });
+
+    (async () => {
+      for await (const msg of store.req([{ kinds: [1], authors: [kind1.pubkey] }], { signal: controller.signal })) {
+        if (msg[0] === 'EVENT') {
+          results.push(msg[2]);
+        }
+      }
+    })();
+
+    await store.event(kind1);
+
+    await waitFor(() => {
+      try {
+        assertEquals(results, [kind1]);
+        return true;
+      } catch {
+        return false;
+      }
+    }, 3000);
+  });
+
+  await t.step("doesn't match mismatched event", async () => {
+    const matching: NostrEvent[] = [];
+    const unmatching: NostrEvent[] = [];
+
+    const kind1 = genEvent({ kind: 1 });
+
+    (async () => {
+      for await (const msg of store.req([{ kinds: [1], authors: [kind1.pubkey] }], { signal: controller.signal })) {
+        if (msg[0] === 'EVENT') {
+          matching.push(msg[2]);
+        }
+      }
+    })();
+
+    (async () => {
+      for await (const msg of store.req([{ kinds: [0], authors: [kind1.pubkey] }], { signal: controller.signal })) {
+        if (msg[0] === 'EVENT') {
+          unmatching.push(msg[2]);
+        }
+      }
+    })();
+
+    await store.event(kind1);
+
+    await waitFor(() => {
+      try {
+        assertEquals(matching, [kind1]);
+        return true;
+      } catch {
+        return false;
+      }
+    }, 3000);
+
+    assertEquals(unmatching, []);
+  });
 
   controller.abort();
 });

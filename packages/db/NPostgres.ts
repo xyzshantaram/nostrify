@@ -82,8 +82,32 @@ export class NPostgres implements NRelay {
         .distinctOn('sub_id')
         .where((eb) =>
           eb.or([
+            eb(sql`nostr_subscriptions.filter->'ids'`, '?', event.id),
+            eb(sql`nostr_subscriptions.filter ? 'ids'`, 'is', false),
+          ])
+        )
+        .where((eb) =>
+          eb.or([
+            eb(sql`nostr_subscriptions.filter->'kinds'`, '@>', eb.val([event.kind])),
+            eb(sql`nostr_subscriptions.filter ? 'kinds'`, 'is', false),
+          ])
+        )
+        .where((eb) =>
+          eb.or([
             eb(sql`nostr_subscriptions.filter->'authors'`, '?', event.pubkey),
             eb(sql`nostr_subscriptions.filter ? 'authors'`, 'is', false),
+          ])
+        )
+        .where((eb) =>
+          eb.or([
+            eb(sql`nostr_subscriptions.filter->'since'`, '<=', event.created_at),
+            eb(sql`nostr_subscriptions.filter ? 'since'`, 'is', false),
+          ])
+        )
+        .where((eb) =>
+          eb.or([
+            eb(sql`nostr_subscriptions.filter->'until'`, '>=', event.created_at),
+            eb(sql`nostr_subscriptions.filter ? 'until'`, 'is', false),
           ])
         );
 
