@@ -19,6 +19,11 @@ export interface NPostgresSchema {
     search: unknown;
     search_ext: Record<string, string>;
   };
+  nostr_subscriptions: {
+    conn_id: string;
+    sub_id: string;
+    filters: NostrFilter[];
+  };
 }
 
 /** Options object for the NPostgres constructor. */
@@ -579,6 +584,13 @@ export class NPostgres implements NRelay {
         sql`(kind >= 30000 and kind < 40000 and d is not null) or ((kind < 30000 or kind >= 40000) and d is null)`,
       )
       .ifNotExists()
+      .execute();
+
+    await schema
+      .createTable('nostr_subscriptions')
+      .addColumn('conn_id', 'char(36)', (col) => col.notNull())
+      .addColumn('sub_id', 'varchar(255)', (col) => col.notNull())
+      .addColumn('filters', 'jsonb', (col) => col.notNull())
       .execute();
 
     await schema
