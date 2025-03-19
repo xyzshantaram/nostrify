@@ -663,14 +663,6 @@ export class NPostgres implements NRelay {
       .execute();
 
     await schema
-      .createTable('nostr_subscriptions')
-      .modifyFront(sql`unlogged`)
-      .addColumn('sub_id', 'char(36)', (col) => col.notNull())
-      .addColumn('filter', 'jsonb', (col) => col.notNull())
-      .ifNotExists()
-      .execute();
-
-    await schema
       .createIndex('nostr_events_created_kind_idx')
       .on('nostr_events')
       .columns(['created_at desc', 'id asc', 'kind', 'pubkey'])
@@ -720,6 +712,28 @@ export class NPostgres implements NRelay {
       .createIndex('nostr_events_search_ext_idx').using('gin')
       .on('nostr_events')
       .column('search_ext')
+      .ifNotExists()
+      .execute();
+
+    await schema
+      .createTable('nostr_subscriptions')
+      .modifyFront(sql`unlogged`)
+      .addColumn('sub_id', 'char(36)', (col) => col.notNull())
+      .addColumn('filter', 'jsonb', (col) => col.notNull())
+      .ifNotExists()
+      .execute();
+
+    await schema
+      .createIndex('nostr_subscriptions_sub_id_idx')
+      .on('nostr_subscriptions')
+      .column('sub_id')
+      .ifNotExists()
+      .execute();
+
+    await schema
+      .createIndex('nostr_subscriptions_filter_idx').using('gin')
+      .on('nostr_subscriptions')
+      .column('filter')
       .ifNotExists()
       .execute();
 
