@@ -70,13 +70,17 @@ export class NPostgres implements NRelay {
     this.indexExtensions = opts?.indexExtensions ?? (() => ({}));
     this.chunkSize = opts?.chunkSize ?? 20;
 
+    // sql`truncate table nostr_subscriptions`.execute(this.db);
+
     opts?.listen?.('nostr_event', async (payload) => {
       const { id } = JSON.parse(payload);
-      const [event] = await this.query([{ ids: [id] }]);
+      const row = await this.db.selectFrom('nostr_events').selectAll().where('id', '=', id).executeTakeFirst();
 
-      if (!event) return;
+      if (!row) return;
 
-      const query = this.db
+      const event = this.parseEventRow(row);
+
+      let query = this.db
         .selectFrom('nostr_subscriptions')
         .select('sub_id')
         .distinctOn('sub_id')
@@ -110,6 +114,21 @@ export class NPostgres implements NRelay {
             eb(sql`nostr_subscriptions.filter ? 'until'`, 'is', false),
           ])
         );
+
+      for (const [tag, values] of Object.entries(row.tags_index)) {
+        query = query.where((eb) =>
+          eb.or(
+            values
+              .filter((value) => value.match(/^[\w-]+$/))
+              .map((value) =>
+                eb.or([
+                  eb(sql`nostr_subscriptions.filter->'${sql.raw('#' + tag)}'`, '?', value),
+                  eb(sql`nostr_subscriptions.filter ? '${sql.raw('#' + tag)}'`, 'is', false),
+                ])
+              ),
+          )
+        );
+      }
 
       for (const { sub_id } of await query.execute()) {
         this.ee.dispatchEvent(new CustomEvent(`sub:${sub_id}`, { detail: event }));

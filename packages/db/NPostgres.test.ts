@@ -866,6 +866,31 @@ Deno.test('NPostgres.req streams events in realtime', { ignore: !databaseUrl }, 
     assertEquals(unmatching, []);
   });
 
+  await t.step('match tag queries', async () => {
+    const results: NostrEvent[] = [];
+
+    const kind1 = genEvent({ kind: 1, tags: [['t', 'bitcoin']] });
+
+    (async () => {
+      for await (const msg of store.req([{ '#t': ['bitcoin'] }], { signal: controller.signal })) {
+        if (msg[0] === 'EVENT') {
+          results.push(msg[2]);
+        }
+      }
+    })();
+
+    await store.event(kind1);
+
+    await waitFor(() => {
+      try {
+        assertEquals(results, [kind1]);
+        return true;
+      } catch {
+        return false;
+      }
+    }, 3000);
+  });
+
   controller.abort();
 });
 
