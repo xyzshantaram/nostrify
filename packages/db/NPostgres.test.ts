@@ -2,6 +2,7 @@ import { RelayError } from '@nostrify/nostrify';
 import { genEvent, jsonlEvents } from '@nostrify/nostrify/test';
 import { NostrEvent, NostrFilter } from '@nostrify/types';
 import { assert, assertEquals, assertRejects } from '@std/assert';
+import { waitFor } from '@std/async/unstable-wait-for';
 import { Kysely, LogConfig, LogEvent } from 'kysely';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 import { finalizeEvent, generateSecretKey, matchFilters } from 'nostr-tools';
@@ -26,15 +27,20 @@ const log: LogConfig = (event: LogEvent): void => {
 async function createDB(
   opts?: NPostgresOpts,
 ): Promise<{ store: NPostgres; kysely: Kysely<NPostgresSchema>; [Symbol.asyncDispose]: () => Promise<void> }> {
+  const pg = postgres(databaseUrl!);
+
   const kysely = new Kysely<NPostgresSchema>({
     dialect: new PostgresJSDialect({
       // @ts-ignore mismatched library versions
-      postgres: postgres(databaseUrl!),
+      postgres: pg,
     }),
     log,
   });
 
-  const store = new NPostgres(kysely, opts);
+  const store = new NPostgres(kysely, {
+    ...opts,
+    listen: (channel, cb) => pg.listen(channel, cb),
+  });
 
   await withoutDebug(() => store.migrate());
 
@@ -42,7 +48,10 @@ async function createDB(
     store,
     kysely,
     [Symbol.asyncDispose]: async () => {
-      await withoutDebug(() => kysely.schema.dropTable('nostr_events').ifExists().cascade().execute());
+      await withoutDebug(async () => {
+        await kysely.schema.dropTable('nostr_events').ifExists().cascade().execute();
+        await kysely.schema.dropTable('nostr_subscriptions').ifExists().cascade().execute();
+      });
       await kysely.destroy();
     },
   };
@@ -723,7 +732,7 @@ Deno.test('NPostgres timeout', { ignore: !databaseUrl }, async (t) => {
   });
 });
 
-Deno.test('NPostgres.req streams events', { ignore: !databaseUrl }, async () => {
+Deno.test('NPostgres.req', { ignore: !databaseUrl }, async () => {
   await using db = await createDB();
   const { store } = db;
 
@@ -741,6 +750,36 @@ Deno.test('NPostgres.req streams events', { ignore: !databaseUrl }, async () => 
   }
 
   assertEquals(expected, results);
+});
+
+Deno.test('NPostgres.req streams events in realtime', { ignore: !databaseUrl }, async () => {
+  const controller = new AbortController();
+  await using db = await createDB();
+  const { store } = db;
+
+  const results: NostrEvent[] = [];
+
+  (async () => {
+    for await (const msg of store.req([{ kinds: [0] }], { signal: controller.signal })) {
+      if (msg[0] === 'EVENT') {
+        results.push(msg[2]);
+      }
+    }
+  })();
+
+  const kind0 = genEvent({ kind: 0 });
+  await store.event(kind0);
+
+  await waitFor(() => {
+    try {
+      assertEquals(results, [kind0]);
+      return true;
+    } catch {
+      return false;
+    }
+  }, 3000);
+
+  controller.abort();
 });
 
 Deno.test('NPostgres.req with an empty database', { ignore: !databaseUrl }, async () => {

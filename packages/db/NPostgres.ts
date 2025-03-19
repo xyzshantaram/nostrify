@@ -20,9 +20,8 @@ export interface NPostgresSchema {
     search_ext: Record<string, string>;
   };
   nostr_subscriptions: {
-    conn_id: string;
     sub_id: string;
-    filters: NostrFilter[];
+    filter: NostrFilter;
   };
 }
 
@@ -45,6 +44,8 @@ export interface NPostgresOpts {
   indexExtensions?(event: NostrEvent): Record<string, string> | Promise<Record<string, string>>;
   /** Chunk size to use when streaming results with `.req`. Default: 20. */
   chunkSize?: number;
+  /** Postgres `listen` method of the underlying database connection. Must be provided to enable real-time streaming. */
+  listen?(channel: string, callback: (payload: string) => void): void;
 }
 
 /** Query to select necessary fields from the `nostr_events` table. */
@@ -60,13 +61,36 @@ export class NPostgres implements NRelay {
   private indexSearch: (event: NostrEvent) => string | undefined;
   private indexExtensions: (event: NostrEvent) => Record<string, string> | Promise<Record<string, string>>;
   private chunkSize: number;
+  private ee = new EventTarget();
 
-  constructor(db: Kysely<any>, opts?: NPostgresOpts) {
+  constructor(db: Kysely<any>, private opts?: NPostgresOpts) {
     this.db = db as Kysely<NPostgresSchema>;
     this.indexTags = opts?.indexTags ?? NPostgres.indexTags;
     this.indexSearch = opts?.indexSearch ?? NPostgres.indexSearch;
     this.indexExtensions = opts?.indexExtensions ?? (() => ({}));
     this.chunkSize = opts?.chunkSize ?? 20;
+
+    opts?.listen?.('nostr_event', async (payload) => {
+      const { id } = JSON.parse(payload);
+      const [event] = await this.query([{ ids: [id] }]);
+
+      if (!event) return;
+
+      const query = this.db
+        .selectFrom('nostr_subscriptions')
+        .select('sub_id')
+        .distinctOn('sub_id')
+        .where((eb) =>
+          eb.or([
+            eb(sql`nostr_subscriptions.filter->'authors'`, '?', event.pubkey),
+            eb(sql`nostr_subscriptions.filter ? 'authors'`, 'is', false),
+          ])
+        );
+
+      for (const { sub_id } of await query.execute()) {
+        this.ee.dispatchEvent(new CustomEvent(`sub:${sub_id}`, { detail: event }));
+      }
+    });
   }
 
   /** Default tag index function. */
@@ -379,12 +403,13 @@ export class NPostgres implements NRelay {
     opts: { timeout?: number; signal?: AbortSignal } = {},
   ): AsyncIterable<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED> {
     const subId = crypto.randomUUID();
+    const controller = new AbortController();
+    const signal = opts.signal ? AbortSignal.any([controller.signal, opts.signal]) : controller.signal;
+    const machina = new Machina<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED>(signal);
 
     filters = this.normalizeFilters(filters);
 
     if (filters.length) {
-      const machina = new Machina<NostrRelayEVENT | NostrRelayEOSE | NostrRelayCLOSED>(opts.signal);
-
       this.withTimeout(this.db, opts.timeout, async (trx) => {
         const rows = this.getEventsQuery(trx, filters).stream(this.chunkSize);
 
@@ -422,7 +447,34 @@ export class NPostgres implements NRelay {
       }
     }
 
-    yield ['CLOSED', subId, 'error: realtime streaming is not supported'];
+    await this.db
+      .insertInto('nostr_subscriptions')
+      .values(filters.map((filter) => ({ sub_id: subId, filter })))
+      .execute();
+
+    this.ee.addEventListener(`sub:${subId}`, (e) => {
+      const { detail: event } = e as CustomEvent<NostrEvent>;
+      machina.push(['EVENT', subId, event]);
+    }, { signal });
+
+    try {
+      for await (const msg of machina) {
+        yield msg;
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        yield ['CLOSED', subId, 'error: the relay could not respond fast enough'];
+      } else {
+        yield ['CLOSED', subId, 'error: something went wrong'];
+      }
+    } finally {
+      controller.abort();
+
+      await this.db
+        .deleteFrom('nostr_subscriptions')
+        .where('sub_id', '=', subId)
+        .execute();
+    }
   }
 
   /** Get events for filters from the database. */
@@ -588,9 +640,10 @@ export class NPostgres implements NRelay {
 
     await schema
       .createTable('nostr_subscriptions')
-      .addColumn('conn_id', 'char(36)', (col) => col.notNull())
-      .addColumn('sub_id', 'varchar(255)', (col) => col.notNull())
-      .addColumn('filters', 'jsonb', (col) => col.notNull())
+      .modifyFront(sql`unlogged`)
+      .addColumn('sub_id', 'char(36)', (col) => col.notNull())
+      .addColumn('filter', 'jsonb', (col) => col.notNull())
+      .ifNotExists()
       .execute();
 
     await schema
@@ -645,5 +698,41 @@ export class NPostgres implements NRelay {
       .column('search_ext')
       .ifNotExists()
       .execute();
+
+    await sql`
+      CREATE OR REPLACE FUNCTION notify_nostr_event()
+      RETURNS TRIGGER AS $$
+      DECLARE
+        payload JSON;
+      BEGIN
+        IF OLD.id IS DISTINCT FROM NEW.id THEN
+          payload := json_build_object(
+            'id', NEW.id,
+            'pubkey', NEW.pubkey,
+            'kind', NEW.kind,
+            'created_at', NEW.created_at
+          );
+
+          PERFORM pg_notify('nostr_event', payload::text);
+        END IF;
+  
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `.execute(this.db);
+
+    await sql`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_trigger 
+          WHERE tgname = 'nostr_event_trigger'
+        ) THEN
+          CREATE TRIGGER nostr_event_trigger
+          AFTER INSERT OR UPDATE ON nostr_events
+          FOR EACH ROW EXECUTE FUNCTION notify_nostr_event();
+        END IF;
+      END $$;
+    `.execute(this.db);
   }
 }
