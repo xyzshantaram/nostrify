@@ -26,9 +26,9 @@ Deno.test('HashtagPolicy', async () => {
     generateSecretKey(),
   );
 
-  assertEquals((await new HashtagPolicy(hashtags).call(event1))[2], true);
-  assertEquals((await new HashtagPolicy(hashtags).call(event2))[2], false);
-  assertEquals((await new HashtagPolicy([]).call(event2))[2], true);
-  assertEquals((await new HashtagPolicy(hashtags).call(event3))[2], true);
-  assertEquals((await new HashtagPolicy(hashtags).call(event4))[2], true);
+  assertEquals((await new HashtagPolicy({ hashtags: hashtags }).call(event1))[2], true);
+  assertEquals((await new HashtagPolicy({ hashtags: hashtags }).call(event2))[2], false);
+  assertEquals((await new HashtagPolicy({ hashtags: [] }).call(event2))[2], true);
+  assertEquals((await new HashtagPolicy({ hashtags: hashtags }).call(event3))[2], true);
+  assertEquals((await new HashtagPolicy({ hashtags: hashtags }).call(event4))[2], true);
 });

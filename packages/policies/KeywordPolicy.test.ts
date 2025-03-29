@@ -21,8 +21,8 @@ Deno.test('KeywordPolicy', async () => {
     generateSecretKey(),
   );
 
-  assertEquals((await new KeywordPolicy(words).call(event1))[2], true);
-  assertEquals((await new KeywordPolicy(words).call(event2))[2], false);
-  assertEquals((await new KeywordPolicy([]).call(event2))[2], true);
-  assertEquals((await new KeywordPolicy(words).call(event3))[2], false);
+  assertEquals((await new KeywordPolicy({ keywords: words }).call(event1))[2], true);
+  assertEquals((await new KeywordPolicy({ keywords: words }).call(event2))[2], false);
+  assertEquals((await new KeywordPolicy({ keywords: [] }).call(event2))[2], true);
+  assertEquals((await new KeywordPolicy({ keywords: words }).call(event3))[2], false);
 });

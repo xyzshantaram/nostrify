@@ -11,7 +11,7 @@ Deno.test('PubkeyBanPolicy', async () => {
     );
   });
 
-  assertEquals((await new PubkeyBanPolicy([]).call(event1))[2], true);
-  assertEquals((await new PubkeyBanPolicy([event2.pubkey, event1.pubkey]).call(event3))[2], true);
-  assertEquals((await new PubkeyBanPolicy([event2.pubkey, event1.pubkey]).call(event2))[2], false);
+  assertEquals((await new PubkeyBanPolicy({ pubkeys: [] }).call(event1))[2], true);
+  assertEquals((await new PubkeyBanPolicy({ pubkeys: [event2.pubkey, event1.pubkey] }).call(event3))[2], true);
+  assertEquals((await new PubkeyBanPolicy({ pubkeys: [event2.pubkey, event1.pubkey] }).call(event2))[2], false);
 });

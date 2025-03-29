@@ -11,7 +11,7 @@ Deno.test('WhitelistPolicy', async () => {
     );
   });
 
-  assertEquals((await new WhitelistPolicy([]).call(event1))[2], false);
-  assertEquals((await new WhitelistPolicy([event2.pubkey, event1.pubkey]).call(event3))[2], false);
-  assertEquals((await new WhitelistPolicy([event2.pubkey, event1.pubkey]).call(event2))[2], true);
+  assertEquals((await new WhitelistPolicy({ pubkeys: [] }).call(event1))[2], false);
+  assertEquals((await new WhitelistPolicy({ pubkeys: [event2.pubkey, event1.pubkey] }).call(event3))[2], false);
+  assertEquals((await new WhitelistPolicy({ pubkeys: [event2.pubkey, event1.pubkey] }).call(event2))[2], true);
 });

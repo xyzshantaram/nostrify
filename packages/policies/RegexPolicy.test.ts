@@ -9,9 +9,9 @@ Deno.test('RegexPolicy', async () => {
     generateSecretKey(),
   );
 
-  assertEquals((await new RegexPolicy(/https:\/\/t\.me\/\w+/i).call(event))[2], false);
-  assertEquals((await new RegexPolicy(/🔥{1,3}/).call(event))[2], false);
-  assertEquals((await new RegexPolicy(/🔥{4}/).call(event))[2], true);
-  assertEquals((await new RegexPolicy(/🔥$/).call(event))[2], true);
-  assertEquals((await new RegexPolicy(/^🔥/).call(event))[2], false);
+  assertEquals((await new RegexPolicy({ regex: /https:\/\/t\.me\/\w+/i }).call(event))[2], false);
+  assertEquals((await new RegexPolicy({ regex: /🔥{1,3}/ }).call(event))[2], false);
+  assertEquals((await new RegexPolicy({ regex: /🔥{4}/ }).call(event))[2], true);
+  assertEquals((await new RegexPolicy({ regex: /🔥$/ }).call(event))[2], true);
+  assertEquals((await new RegexPolicy({ regex: /^🔥/ }).call(event))[2], false);
 });
