@@ -18,7 +18,7 @@ export interface RegexPolicyOpts extends Partial<z.TypeOf<typeof RegexPolicyOpts
  *
  * ```ts
  * // Ban events matching a regex.
- * new RegexPolicy({ regex: /(🟠|🔥|😳)ChtaGPT/i });
+ * new RegexPolicy({ expr: '(🟠|🔥|😳)ChtaGPT', flags: 'i' });
  * ```
  */
 export class RegexPolicy implements NPolicy {
