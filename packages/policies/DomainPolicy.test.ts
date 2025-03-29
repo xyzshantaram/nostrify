@@ -10,7 +10,8 @@ Deno.test('DomainPolicy allows events from authors with a valid nip05', async ()
   const pubkey = getPublicKey(sk);
 
   const store = new MockRelay();
-  const policy = new DomainPolicy(store, {
+  const policy = new DomainPolicy({
+    store,
     // deno-lint-ignore require-await
     async lookup(nip05: string) {
       if (nip05 === 'alex@gleasonator.dev') {
@@ -32,7 +33,7 @@ Deno.test('DomainPolicy allows events from authors with a valid nip05', async ()
 
 Deno.test('DomainPolicy rejects events from authors without a kind 0', async () => {
   const store = new MockRelay();
-  const policy = new DomainPolicy(store);
+  const policy = new DomainPolicy({ store });
   const event = genEvent({ kind: 1, content: 'hello world' });
 
   const result = await policy.call(event);
@@ -42,7 +43,7 @@ Deno.test('DomainPolicy rejects events from authors without a kind 0', async () 
 
 Deno.test('DomainPolicy rejects events from authors with a missing nip05', async () => {
   const store = new MockRelay();
-  const policy = new DomainPolicy(store);
+  const policy = new DomainPolicy({ store });
 
   const sk = generateSecretKey();
   const metadata: NostrMetadata = {};
@@ -56,7 +57,7 @@ Deno.test('DomainPolicy rejects events from authors with a missing nip05', async
 
 Deno.test('DomainPolicy rejects events from authors with a malformed nip05', async () => {
   const store = new MockRelay();
-  const policy = new DomainPolicy(store);
+  const policy = new DomainPolicy({ store });
 
   const sk = generateSecretKey();
   const metadata: NostrMetadata = { nip05: 'asdf' };
@@ -71,7 +72,8 @@ Deno.test('DomainPolicy rejects events from authors with a malformed nip05', asy
 Deno.test('DomainPolicy rejects events from authors with an invalid nip05', async () => {
   const store = new MockRelay();
 
-  const policy = new DomainPolicy(store, {
+  const policy = new DomainPolicy({
+    store,
     // deno-lint-ignore require-await
     async lookup(_nip05: string) {
       const pubkey = getPublicKey(generateSecretKey());
@@ -94,7 +96,8 @@ Deno.test('DomainPolicy rejects events from authors with a blacklisted nip05 dom
   const pubkey = getPublicKey(sk);
 
   const store = new MockRelay();
-  const policy = new DomainPolicy(store, {
+  const policy = new DomainPolicy({
+    store,
     // deno-lint-ignore require-await
     async lookup(nip05: string) {
       if (nip05 === 'bot@replyguy.dev') {
@@ -120,7 +123,8 @@ Deno.test("DomainPolicy rejects events from authors who aren't on a whitelisted 
   const pubkey = getPublicKey(sk);
 
   const store = new MockRelay();
-  const policy = new DomainPolicy(store, {
+  const policy = new DomainPolicy({
+    store,
     // deno-lint-ignore require-await
     async lookup(nip05: string) {
       if (nip05 === 'bot@replyguy.dev') {
@@ -146,7 +150,8 @@ Deno.test('DomainPolicy allows events from authors who are on a whitelisted doma
   const pubkey = getPublicKey(sk);
 
   const store = new MockRelay();
-  const policy = new DomainPolicy(store, {
+  const policy = new DomainPolicy({
+    store,
     // deno-lint-ignore require-await
     async lookup(nip05: string) {
       if (nip05 === 'alex@gleasonator.dev') {

@@ -6,7 +6,7 @@ import { AuthorPolicy } from './AuthorPolicy.ts';
 
 Deno.test('AuthorPolicy', async () => {
   const store = new MockRelay();
-  const policy = new AuthorPolicy(store);
+  const policy = new AuthorPolicy({ store });
 
   const sk = generateSecretKey();
   const event = genEvent({ kind: 1 }, sk);

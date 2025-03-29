@@ -20,53 +20,58 @@ export const DomainPolicyOptsSchema = z.object({
 export interface DomainPolicyOpts extends Partial<z.TypeOf<typeof DomainPolicyOptsSchema>> {
   /** Custom NIP-05 lookup function. */
   lookup?(nip05: string, signal?: AbortSignal): Promise<NProfilePointer>;
+  /** NStore object to use to  */
+  store: NStore;
 }
 
 /** Ban events unless their author has a valid NIP-05 name. Domains can also be whitelisted or blacklisted. */
 export class DomainPolicy extends AuthorPolicy implements NPolicy {
-  constructor(store: NStore, opts: DomainPolicyOpts = {}) {
-    super(store, {
-      async call(event, signal) {
-        const { blacklist = [], whitelist, lookup = DomainPolicy.lookup } = opts;
+  constructor(opts: DomainPolicyOpts) {
+    super({
+      ...opts,
+      policy: {
+        async call(event, signal) {
+          const { blacklist = [], whitelist, lookup = DomainPolicy.lookup } = opts;
 
-        const metadata = n.json().pipe(n.metadata()).safeParse(event.content);
+          const metadata = n.json().pipe(n.metadata()).safeParse(event.content);
 
-        if (!metadata.success) {
-          return ['OK', event.id, false, 'blocked: invalid kind 0 metadata'];
-        }
-
-        const { nip05 } = metadata.data;
-
-        if (!nip05) {
-          return ['OK', event.id, false, 'blocked: missing nip05'];
-        }
-
-        const domain = nip05.split('@').pop();
-
-        if (!domain) {
-          return ['OK', event.id, false, 'blocked: invalid nip05'];
-        }
-
-        if (blacklist.includes(domain)) {
-          return ['OK', event.id, false, 'blocked: blacklisted nip05 domain'];
-        }
-
-        try {
-          const { pubkey } = await lookup(nip05, signal);
-
-          if (pubkey !== event.pubkey) {
-            return ['OK', event.id, false, 'blocked: mismatched nip05 pubkey'];
+          if (!metadata.success) {
+            return ['OK', event.id, false, 'blocked: invalid kind 0 metadata'];
           }
 
-          if (whitelist && !whitelist.includes(domain)) {
-            return ['OK', event.id, false, 'blocked: nip05 domain not in whitelist'];
+          const { nip05 } = metadata.data;
+
+          if (!nip05) {
+            return ['OK', event.id, false, 'blocked: missing nip05'];
           }
 
-          return ['OK', event.id, true, ''];
-        } catch {
-          return ['OK', event.id, false, 'blocked: failed to lookup nip05'];
-        }
-      },
+          const domain = nip05.split('@').pop();
+
+          if (!domain) {
+            return ['OK', event.id, false, 'blocked: invalid nip05'];
+          }
+
+          if (blacklist.includes(domain)) {
+            return ['OK', event.id, false, 'blocked: blacklisted nip05 domain'];
+          }
+
+          try {
+            const { pubkey } = await lookup(nip05, signal);
+
+            if (pubkey !== event.pubkey) {
+              return ['OK', event.id, false, 'blocked: mismatched nip05 pubkey'];
+            }
+
+            if (whitelist && !whitelist.includes(domain)) {
+              return ['OK', event.id, false, 'blocked: nip05 domain not in whitelist'];
+            }
+
+            return ['OK', event.id, true, ''];
+          } catch {
+            return ['OK', event.id, false, 'blocked: failed to lookup nip05'];
+          }
+        },
+      }
     });
   }
 

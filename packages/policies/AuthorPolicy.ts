@@ -1,8 +1,13 @@
 import { NostrEvent, NostrRelayOK, NPolicy, NStore } from '@nostrify/types';
 
+interface AuthorPolicyOpts {
+  store: NStore,
+  policy?: NPolicy
+}
+
 /** Rejects events by authors without a kind 0, then optionally applies another policy to the kind 0. */
 export class AuthorPolicy implements NPolicy {
-  constructor(private store: NStore, private policy?: NPolicy) {}
+  constructor(private opts: AuthorPolicyOpts, private store = opts.store, private policy = opts.policy) { }
 
   async call(event: NostrEvent, signal?: AbortSignal): Promise<NostrRelayOK> {
     const author: NostrEvent | undefined = event.kind === 0 ? event : await this.store
