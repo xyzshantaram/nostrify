@@ -5,12 +5,12 @@ export const AntiDuplicationPolicyOptsSchema = z.object({
   /** Time in ms until a message with this content may be posted again. Default: `60000` (1 minute). */
   expireIn: z.number()
     .default(60000)
-    .describe("How long should we wait before an identical message can be reposted?"),
+    .describe('How long should we wait before an identical message can be reposted?'),
 
   /** Note text under this limit will be skipped by the policy. Default: `50`. */
   minLength: z.number()
     .default(50)
-    .describe("Minimum length for filtered messages"),
+    .describe('Minimum length for filtered messages'),
 });
 
 /** Policy options for `AntiDuplicationPolicy`. */
@@ -38,7 +38,7 @@ export interface AntiDuplicationPolicyOpts extends Partial<z.TypeOf<typeof AntiD
  * ```
  */
 export class AntiDuplicationPolicy implements NPolicy {
-  constructor(private opts: AntiDuplicationPolicyOpts) { }
+  constructor(private opts: AntiDuplicationPolicyOpts) {}
 
   async call(event: NostrEvent): Promise<NostrRelayOK> {
     const { id, kind } = event;

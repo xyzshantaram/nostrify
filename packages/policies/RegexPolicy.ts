@@ -1,11 +1,11 @@
 import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
-import { z } from "zod";
+import { z } from 'zod';
 
 /** Policy options for `RegexPolicy`. */
 export const RegexPolicyOptsSchema = z.object({
   /** Regular expression to test event content against. */
-  expr: z.string().describe("Expression"),
-  flags: z.string().optional().describe("Additional RegExp flags. Leave blank if unsure.")
+  expr: z.string().describe('Expression'),
+  flags: z.string().optional().describe('Additional RegExp flags. Leave blank if unsure.'),
 });
 
 /** Policy options for `RegexPolicy`. */
@@ -22,7 +22,7 @@ export interface RegexPolicyOpts extends Partial<z.TypeOf<typeof RegexPolicyOpts
  * ```
  */
 export class RegexPolicy implements NPolicy {
-  constructor(private opts: RegexPolicyOpts, private regex = new RegExp(opts.expr, opts.flags)) { }
+  constructor(private opts: RegexPolicyOpts, private regex = new RegExp(opts.expr, opts.flags)) {}
 
   // deno-lint-ignore require-await
   async call({ id, content }: NostrEvent): Promise<NostrRelayOK> {

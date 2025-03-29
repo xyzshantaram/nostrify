@@ -1,15 +1,15 @@
 import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
-import { z } from "zod";
+import { z } from 'zod';
 
 /** Policy options for `KeywordPolicy`. */
 export const KeywordPolicyOptsSchema = z.object({
   /** List of banned keywords (case-insensitive). */
   keywords: z.array(z.string())
-    .describe("Banned keywords (case-insensitive)"),
+    .describe('Banned keywords (case-insensitive)'),
 });
 
 /** Policy options for `KeywordPolicy`. */
-export interface KeywordPolicyOpts extends z.TypeOf<typeof KeywordPolicyOptsSchema> { }
+export interface KeywordPolicyOpts extends z.TypeOf<typeof KeywordPolicyOptsSchema> {}
 
 /**
  * Reject events containing any of the strings in its content.
@@ -21,7 +21,7 @@ export interface KeywordPolicyOpts extends z.TypeOf<typeof KeywordPolicyOptsSche
  * ```
  */
 export class KeywordPolicy implements NPolicy {
-  constructor(private opts: KeywordPolicyOpts) { }
+  constructor(private opts: KeywordPolicyOpts) {}
 
   // deno-lint-ignore require-await
   async call({ id, content }: NostrEvent): Promise<NostrRelayOK> {

@@ -1,9 +1,8 @@
 import { NostrEvent, NostrRelayOK, NPolicy, NStore } from '@nostrify/types';
-import { z } from "zod";
+import { z } from 'zod';
 
 /** Options for the `WoTPolicy`. */
 export const WoTPolicyOptsSchema = z.object({
-
   /** Initial set of trusted pubkeys to query follow lists for. */
   pubkeys: z.array(z.string()),
   /**
@@ -25,7 +24,7 @@ export interface WoTPolicyOpts extends z.TypeOf<typeof WoTPolicyOptsSchema> {
 export class WoTPolicy implements NPolicy {
   private pubkeys: Promise<Set<string>> | undefined;
 
-  constructor(private opts: WoTPolicyOpts) { }
+  constructor(private opts: WoTPolicyOpts) {}
 
   async call(event: NostrEvent): Promise<NostrRelayOK> {
     this.pubkeys ??= this.getPubkeys();

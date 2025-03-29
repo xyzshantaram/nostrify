@@ -1,20 +1,20 @@
 import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
-import { z } from "zod";
+import { z } from 'zod';
 
 /** Policy options for `HellthreadPolicy`. */
 export const HellthreadPolicyOptsSchema = z.object({
   /** Total number of "p" tags a kind 1 note may have before it's rejected. Default: `100`. */
   limit: z.number()
     .default(100)
-    .describe("Maximum number of mentions to allow per post"),
+    .describe('Maximum number of mentions to allow per post'),
 });
 
 /** Policy options for `HellthreadPolicy`. */
-export interface HellthreadPolicyOpts extends Partial<z.TypeOf<typeof HellthreadPolicyOptsSchema>> { }
+export interface HellthreadPolicyOpts extends Partial<z.TypeOf<typeof HellthreadPolicyOptsSchema>> {}
 
 /** Policy to prevent "hellthreads" - notes that tag hundreds of people to cause a nuisance and server load. */
 export class HellthreadPolicy implements NPolicy {
-  constructor(private opts: HellthreadPolicyOpts = {}) { }
+  constructor(private opts: HellthreadPolicyOpts = {}) {}
 
   // deno-lint-ignore require-await
   async call({ id, kind, tags }: NostrEvent): Promise<NostrRelayOK> {

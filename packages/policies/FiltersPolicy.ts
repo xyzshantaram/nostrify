@@ -5,23 +5,23 @@ import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
 
 export const FiltersPolicyOptsSchema = z.object({
   /* A list of [NIP-01](https://github.com/nostr-protocol/nips/blob/master/01.md) relay filters. */
-  filters: z.array(n.filter())
+  filters: z.array(n.filter()),
 });
 
-interface FiltersPolicyOpts extends z.TypeOf<typeof FiltersPolicyOptsSchema> { }
+interface FiltersPolicyOpts extends z.TypeOf<typeof FiltersPolicyOptsSchema> {}
 
 /**
  * Reject events which don't match the filters.
  *
  * Only messages which **match** the filters are allowed, and all others are dropped.
- * 
+ *
  * ```ts
  * // Only allow kind 1, 3, 5, and 7 events.
  * new FiltersPolicy({ filters: [{ kinds: [0, 1, 3, 5, 6, 7] }] });
  * ```
  */
 export class FiltersPolicy implements NPolicy {
-  constructor(private opts: FiltersPolicyOpts) { }
+  constructor(private opts: FiltersPolicyOpts) {}
 
   // deno-lint-ignore require-await
   async call(event: NostrEvent): Promise<NostrRelayOK> {
