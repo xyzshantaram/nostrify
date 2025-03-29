@@ -4,12 +4,14 @@ import { z } from "zod";
 /** Policy options for `RegexPolicy`. */
 export const RegexPolicyOptsSchema = z.object({
   /** Regular expression to test event content against. */
-  regex: z.instanceof(RegExp)
-    .describe("Regular expression to test event content against."),
+  expr: z.string().describe("Expression"),
+  ignore: z.boolean().describe("Ignore case?")
 });
 
 /** Policy options for `RegexPolicy`. */
-export interface RegexPolicyOpts extends z.TypeOf<typeof RegexPolicyOptsSchema> {}
+export interface RegexPolicyOpts extends Partial<z.TypeOf<typeof RegexPolicyOptsSchema>> {
+  expr: string;
+}
 
 /**
  * Reject events whose content matches the regex.
@@ -20,11 +22,11 @@ export interface RegexPolicyOpts extends z.TypeOf<typeof RegexPolicyOptsSchema> 
  * ```
  */
 export class RegexPolicy implements NPolicy {
-  constructor(private opts: RegexPolicyOpts) {}
+  constructor(private opts: RegexPolicyOpts, private regex = new RegExp(opts.expr)) { }
 
   // deno-lint-ignore require-await
   async call({ id, content }: NostrEvent): Promise<NostrRelayOK> {
-    if (this.opts.regex.test(content)) {
+    if (this.regex.test(content)) {
       return ['OK', id, false, 'blocked: text matches a banned expression'];
     }
 
