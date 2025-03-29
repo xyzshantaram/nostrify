@@ -14,7 +14,7 @@ export const AntiDuplicationPolicyOptsSchema = z.object({
 });
 
 /** Policy options for `AntiDuplicationPolicy`. */
-interface AntiDuplicationPolicyOpts extends Partial<z.TypeOf<typeof AntiDuplicationPolicyOptsSchema>> {
+export interface AntiDuplicationPolicyOpts extends Partial<z.TypeOf<typeof AntiDuplicationPolicyOptsSchema>> {
   /** The Deno KV-compatible key-value store instance to use to store info about events. */
   kv: Pick<Deno.Kv, 'get' | 'set'>;
   /** Normalize the event's content before a hash is taken, to prevent the attacker from making small changes. Should return the normalized content. */
