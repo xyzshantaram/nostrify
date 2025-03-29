@@ -5,12 +5,12 @@ export const AntiDuplicationPolicyOptsSchema = z.object({
   /** Time in ms until a message with this content may be posted again. Default: `60000` (1 minute). */
   expireIn: z.number()
     .default(60000)
-    .describe("Time in ms until a message with this content may be posted again. Default: 60000 (1 minute)."),
+    .describe("How long should we wait before an identical message can be reposted?"),
 
   /** Note text under this limit will be skipped by the policy. Default: `50`. */
   minLength: z.number()
     .default(50)
-    .describe("Note text under this limit will be skipped by the policy. Default: 50."),
+    .describe("Minimum length for filtered messages"),
 });
 
 /** Policy options for `AntiDuplicationPolicy`. */

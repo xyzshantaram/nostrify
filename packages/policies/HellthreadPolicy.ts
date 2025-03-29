@@ -6,15 +6,15 @@ export const HellthreadPolicyOptsSchema = z.object({
   /** Total number of "p" tags a kind 1 note may have before it's rejected. Default: `100`. */
   limit: z.number()
     .default(100)
-    .describe("Total number of \"p\" tags a kind 1 note may have before it's rejected. Default: 100."),
+    .describe("Maximum number of mentions to allow per post"),
 });
 
 /** Policy options for `HellthreadPolicy`. */
-export interface HellthreadPolicyOpts extends Partial<z.TypeOf<typeof HellthreadPolicyOptsSchema>> {}
+export interface HellthreadPolicyOpts extends Partial<z.TypeOf<typeof HellthreadPolicyOptsSchema>> { }
 
 /** Basic policy to demonstrate how policies work. Accepts all events. */
 export class HellthreadPolicy implements NPolicy {
-  constructor(private opts: HellthreadPolicyOpts = {}) {}
+  constructor(private opts: HellthreadPolicyOpts = {}) { }
 
   // deno-lint-ignore require-await
   async call({ id, kind, tags }: NostrEvent): Promise<NostrRelayOK> {

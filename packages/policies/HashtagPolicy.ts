@@ -5,11 +5,11 @@ import { z } from "zod";
 export const HashtagPolicyOptsSchema = z.object({
   /** List of banned hashtags (case-insensitive). */
   hashtags: z.array(z.string())
-    .describe("List of banned hashtags (case-insensitive)."),
+    .describe("Banned hashtags (case-insensitive)"),
 });
 
 /** Policy options for `HashtagPolicy`. */
-export interface HashtagPolicyOpts extends z.TypeOf<typeof HashtagPolicyOptsSchema> {}
+export interface HashtagPolicyOpts extends z.TypeOf<typeof HashtagPolicyOptsSchema> { }
 
 /**
  * Reject events containing any of the banned hashtags.
@@ -21,7 +21,7 @@ export interface HashtagPolicyOpts extends z.TypeOf<typeof HashtagPolicyOptsSche
  * ```
  */
 export class HashtagPolicy implements NPolicy {
-  constructor(private opts: HashtagPolicyOpts) {}
+  constructor(private opts: HashtagPolicyOpts) { }
 
   // deno-lint-ignore require-await
   async call({ id, tags }: NostrEvent): Promise<NostrRelayOK> {

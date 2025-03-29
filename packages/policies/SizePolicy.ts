@@ -6,11 +6,11 @@ export const SizePolicyOptsSchema = z.object({
   /** Maximum size of the message content in bytes. Default: `8192` (8KB). */
   maxBytes: z.number()
     .default(8 * 1024)
-    .describe("Maximum size of the message content in bytes. Default: 8192 (8KB)."),
+    .describe("Max allowed message size in bytes (default: 8192)"),
 });
 
 /** Policy options for `SizePolicy`. */
-export interface SizePolicyOpts extends Partial<z.TypeOf<typeof SizePolicyOptsSchema>> {}
+export interface SizePolicyOpts extends Partial<z.TypeOf<typeof SizePolicyOptsSchema>> { }
 
 /**
  * Reject events larger than a specified size in bytes.
@@ -23,7 +23,7 @@ export interface SizePolicyOpts extends Partial<z.TypeOf<typeof SizePolicyOptsSc
  * ```
  */
 export class SizePolicy implements NPolicy {
-  constructor(private opts: SizePolicyOpts = {}) {}
+  constructor(private opts: SizePolicyOpts = {}) { }
 
   // deno-lint-ignore require-await
   async call(event: NostrEvent): Promise<NostrRelayOK> {

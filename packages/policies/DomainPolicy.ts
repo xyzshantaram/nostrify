@@ -9,11 +9,11 @@ export const DomainPolicyOptsSchema = z.object({
   /** List of domains to blacklist. Reject events from users with a NIP-05 matching any of these domains. */
   blacklist: z.array(z.string())
     .default([])
-    .describe("List of domains to blacklist. Reject events from users with a NIP-05 matching any of these domains."),
+    .describe("Domains to blacklist (users from these domains will not be able to post)"),
   /** List of domains to whitelist. If provided, only events from users with a valid NIP-05 on the given domains will be accepted. */
   whitelist: z.array(z.string())
     .optional()
-    .describe("List of domains to whitelist. If provided, only events from users with a valid NIP-05 on the given domains will be accepted."),
+    .describe("Domains to whitelist (only users from these domains will be able to post)"),
 });
 
 /** Policy options for `DomainPolicy`. */

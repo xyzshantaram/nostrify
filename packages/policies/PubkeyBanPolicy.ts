@@ -5,11 +5,11 @@ import { z } from "zod";
 export const PubkeyBanPolicyOptsSchema = z.object({
   /** List of banned pubkeys. */
   pubkeys: z.array(z.string())
-    .describe("List of banned pubkeys."),
+    .describe("Banned pubkeys"),
 });
 
 /** Policy options for `PubkeyBanPolicy`. */
-export interface PubkeyBanPolicyOpts extends z.TypeOf<typeof PubkeyBanPolicyOptsSchema> {}
+export interface PubkeyBanPolicyOpts extends z.TypeOf<typeof PubkeyBanPolicyOptsSchema> { }
 
 /**
  * Ban events from individual pubkeys.
@@ -20,7 +20,7 @@ export interface PubkeyBanPolicyOpts extends z.TypeOf<typeof PubkeyBanPolicyOpts
  * ```
  */
 export class PubkeyBanPolicy implements NPolicy {
-  constructor(private opts: PubkeyBanPolicyOpts) {}
+  constructor(private opts: PubkeyBanPolicyOpts) { }
 
   // deno-lint-ignore require-await
   async call({ id, pubkey }: NostrEvent): Promise<NostrRelayOK> {

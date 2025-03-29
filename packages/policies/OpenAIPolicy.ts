@@ -37,14 +37,14 @@ export const OpenAIPolicyOptsSchema = z.object({
   /** Custom endpoint to use instead of `https://api.openai.com/v1/moderations`. */
   endpoint: z.string()
     .default('https://api.openai.com/v1/moderations')
-    .describe("Custom endpoint to use instead of `https://api.openai.com/v1/moderations`."),
+    .describe("OpenAI API endpoint (default: https://api.openai.com/v1/moderations)."),
   /** Which event kinds to apply the policy to. Default: `[1, 30023]`. */
   kinds: z.array(z.number())
     .default([1, 30023])
-    .describe("Which event kinds to apply the policy to. Default: [1, 30023]."),
+    .describe("Event kinds to filter through the policy (Default: 1, 30023)"),
   /** OpenAI API key for making the requests. */
   apiKey: z.string()
-    .describe("OpenAI API key for making the requests."),
+    .describe("OpenAI API key"),
 });
 
 /** Policy options for `OpenAIPolicy`. */

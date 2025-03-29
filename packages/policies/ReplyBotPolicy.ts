@@ -8,11 +8,11 @@ export const ReplyBotPolicyOptsSchema = z.object({
   /** The minimum time in seconds between two posts. Default: `1`. */
   threshold: z.number()
     .default(1)
-    .describe("The minimum time in seconds between two posts. Default: 1."),
+    .describe("Minimum time in seconds between two posts. (default: 1)"),
   /** The kinds of events to apply the policy to. Default: `[1]`. */
   kinds: z.array(z.number())
     .default([1])
-    .describe("The kinds of events to apply the policy to. Default: [1]."),
+    .describe("Event kinds to filter (only kind 1 by default)"),
 });
 
 /** Policy options for `ReplyBotPolicy`. */
@@ -22,7 +22,7 @@ export interface ReplyBotPolicyOpts extends Partial<z.TypeOf<typeof ReplyBotPoli
 
 /** Block events that reply too quickly to another event. */
 export class ReplyBotPolicy implements NPolicy {
-  constructor(private opts: ReplyBotPolicyOpts) {}
+  constructor(private opts: ReplyBotPolicyOpts) { }
 
   async call(event: NostrEvent, signal?: AbortSignal): Promise<NostrRelayOK> {
     const { store, threshold = 1, kinds = [1] } = this.opts;

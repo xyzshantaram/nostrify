@@ -5,7 +5,7 @@ import { z } from "zod";
 export const KeywordPolicyOptsSchema = z.object({
   /** List of banned keywords (case-insensitive). */
   keywords: z.array(z.string())
-    .describe("List of banned keywords (case-insensitive)."),
+    .describe("Banned keywords (case-insensitive)"),
 });
 
 /** Policy options for `KeywordPolicy`. */
