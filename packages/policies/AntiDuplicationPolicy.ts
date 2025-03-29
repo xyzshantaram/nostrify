@@ -1,17 +1,25 @@
 import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
+import z from 'zod';
+
+export const AntiDuplicationPolicyOptsSchema = z.object({
+  /** Time in ms until a message with this content may be posted again. Default: `60000` (1 minute). */
+  expireIn: z.number()
+    .default(60000)
+    .describe("Time in ms until a message with this content may be posted again. Default: 60000 (1 minute)."),
+
+  /** Note text under this limit will be skipped by the policy. Default: `50`. */
+  minLength: z.number()
+    .default(50)
+    .describe("Note text under this limit will be skipped by the policy. Default: 50."),
+});
 
 /** Policy options for `AntiDuplicationPolicy`. */
-interface AntiDuplicationPolicyOpts {
-  /** Deno.Kv implementation to use. */
+interface AntiDuplicationPolicyOpts extends Partial<z.TypeOf<typeof AntiDuplicationPolicyOptsSchema>> {
+  /** The Deno KV-compatible key-value store instance to use to store info about events. */
   kv: Pick<Deno.Kv, 'get' | 'set'>;
-  /** Time in ms until a message with this content may be posted again. Default: `60000` (1 minute). */
-  expireIn?: number;
-  /** Note text under this limit will be skipped by the policy. Default: `50`. */
-  minLength?: number;
   /** Normalize the event's content before a hash is taken, to prevent the attacker from making small changes. Should return the normalized content. */
   deobfuscate?(event: NostrEvent): string;
 }
-
 /**
  * Prevent messages with the exact same content from being submitted repeatedly.
  *
@@ -30,7 +38,7 @@ interface AntiDuplicationPolicyOpts {
  * ```
  */
 export class AntiDuplicationPolicy implements NPolicy {
-  constructor(private opts: AntiDuplicationPolicyOpts) {}
+  constructor(private opts: AntiDuplicationPolicyOpts) { }
 
   async call(event: NostrEvent): Promise<NostrRelayOK> {
     const { id, kind } = event;

@@ -1,25 +1,31 @@
 import { NostrEvent, NostrRelayOK, NPolicy, NStore } from '@nostrify/types';
+import { z } from "zod";
 
 /** Options for the `WoTPolicy`. */
-interface WoTPolicyOpts {
-  /** Store to get kind 3 follow lists from. */
-  store: NStore;
+export const WoTPolicyOptsSchema = z.object({
+
   /** Initial set of trusted pubkeys to query follow lists for. */
-  pubkeys: Iterable<string>;
+  pubkeys: z.array(z.string()),
   /**
    * How many levels of follow lists to query.
    * `0` will just whitelist the given `pubkeys` without checking their follow lists.
    * `1` will query their follows,
    * `2` will query their follows follows, etc.
    */
-  depth: number;
+  depth: z.number().default(2),
+});
+
+/** Policy options for `WoTPolicy`. */
+export interface WoTPolicyOpts extends z.TypeOf<typeof WoTPolicyOptsSchema> {
+  /** Store to get kind 3 follow lists from. */
+  store: NStore;
 }
 
 /** Whitelist pubkeys the given user follows, people those users follow, etc. up to `depth`. */
 export class WoTPolicy implements NPolicy {
   private pubkeys: Promise<Set<string>> | undefined;
 
-  constructor(private opts: WoTPolicyOpts) {}
+  constructor(private opts: WoTPolicyOpts) { }
 
   async call(event: NostrEvent): Promise<NostrRelayOK> {
     this.pubkeys ??= this.getPubkeys();

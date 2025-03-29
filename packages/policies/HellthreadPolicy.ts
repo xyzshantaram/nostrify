@@ -1,10 +1,16 @@
 import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
+import { z } from "zod";
 
 /** Policy options for `HellthreadPolicy`. */
-interface HellthreadPolicyOpts {
-  /** Total number of "p" tags a kind 1 note may have before it's rejected. Default: `100` */
-  limit?: number;
-}
+export const HellthreadPolicyOptsSchema = z.object({
+  /** Total number of "p" tags a kind 1 note may have before it's rejected. Default: `100`. */
+  limit: z.number()
+    .default(100)
+    .describe("Total number of \"p\" tags a kind 1 note may have before it's rejected. Default: 100."),
+});
+
+/** Policy options for `HellthreadPolicy`. */
+export interface HellthreadPolicyOpts extends Partial<z.TypeOf<typeof HellthreadPolicyOptsSchema>> {}
 
 /** Basic policy to demonstrate how policies work. Accepts all events. */
 export class HellthreadPolicy implements NPolicy {
@@ -18,7 +24,7 @@ export class HellthreadPolicy implements NPolicy {
       const p = tags.filter((tag) => tag[0] === 'p');
 
       if (p.length > limit) {
-        return ['OK', id, false, `blocked: rejected due to ${p.length} "p" tags (${limit} is the limit).`];
+        return ['OK', id, false, `blocked: rejected due to ${p.length} \"p\" tags (${limit} is the limit).`];
       }
     }
 

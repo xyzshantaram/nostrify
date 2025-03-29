@@ -1,10 +1,16 @@
 import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
+import { z } from "zod";
 
 /** Policy options for `SizePolicy`. */
-interface SizePolicyOpts {
-  /** Maximum size of the message content in bytes. Default: 8192 (8KB) */
-  maxBytes?: number;
-}
+export const SizePolicyOptsSchema = z.object({
+  /** Maximum size of the message content in bytes. Default: `8192` (8KB). */
+  maxBytes: z.number()
+    .default(8 * 1024)
+    .describe("Maximum size of the message content in bytes. Default: 8192 (8KB)."),
+});
+
+/** Policy options for `SizePolicy`. */
+export interface SizePolicyOpts extends Partial<z.TypeOf<typeof SizePolicyOptsSchema>> {}
 
 /**
  * Reject events larger than a specified size in bytes.

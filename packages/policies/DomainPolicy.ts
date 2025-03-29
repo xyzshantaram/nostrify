@@ -1,16 +1,25 @@
 import { NIP05, NSchema as n } from '@nostrify/nostrify';
 import { NPolicy, NProfilePointer, NStore } from '@nostrify/types';
+import { z } from "zod";
 
 import { AuthorPolicy } from './AuthorPolicy.ts';
 
 /** Options for `DomainPolicy`. */
-interface DomainPolicyOpts {
+export const DomainPolicyOptsSchema = z.object({
+  /** List of domains to blacklist. Reject events from users with a NIP-05 matching any of these domains. */
+  blacklist: z.array(z.string())
+    .default([])
+    .describe("List of domains to blacklist. Reject events from users with a NIP-05 matching any of these domains."),
+  /** List of domains to whitelist. If provided, only events from users with a valid NIP-05 on the given domains will be accepted. */
+  whitelist: z.array(z.string())
+    .optional()
+    .describe("List of domains to whitelist. If provided, only events from users with a valid NIP-05 on the given domains will be accepted."),
+});
+
+/** Policy options for `DomainPolicy`. */
+export interface DomainPolicyOpts extends Partial<z.TypeOf<typeof DomainPolicyOptsSchema>> {
   /** Custom NIP-05 lookup function. */
   lookup?(nip05: string, signal?: AbortSignal): Promise<NProfilePointer>;
-  /** List of domains to blacklist. Reject events from users with a NIP-05 matching any of these domains. */
-  blacklist?: string[];
-  /** List of domains to whitelist. If provided, only events from users with a valid NIP-05 on the given domains will be accepted. */
-  whitelist?: string[];
 }
 
 /** Ban events unless their author has a valid NIP-05 name. Domains can also be whitelisted or blacklisted. */

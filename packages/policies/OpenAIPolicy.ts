@@ -1,4 +1,5 @@
 import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
+import { z } from "zod";
 
 /**
  * OpenAI moderation result.
@@ -32,20 +33,30 @@ interface OpenAIModerationResult {
 }
 
 /** Policy options for `OpenAIPolicy`. */
-interface OpenAIPolicyOpts {
+export const OpenAIPolicyOptsSchema = z.object({
+  /** Custom endpoint to use instead of `https://api.openai.com/v1/moderations`. */
+  endpoint: z.string()
+    .default('https://api.openai.com/v1/moderations')
+    .describe("Custom endpoint to use instead of `https://api.openai.com/v1/moderations`."),
+  /** Which event kinds to apply the policy to. Default: `[1, 30023]`. */
+  kinds: z.array(z.number())
+    .default([1, 30023])
+    .describe("Which event kinds to apply the policy to. Default: [1, 30023]."),
+  /** OpenAI API key for making the requests. */
+  apiKey: z.string()
+    .describe("OpenAI API key for making the requests."),
+});
+
+/** Policy options for `OpenAIPolicy`. */
+export interface OpenAIPolicyOpts extends Partial<z.TypeOf<typeof OpenAIPolicyOptsSchema>> {
+  apiKey: string;
   /**
    * Callback for fine control over the policy. It contains the event and the OpenAI moderation data.
    * Implementations should return `true` to **reject** the content, and `false` to accept.
    */
   handler?(event: NostrEvent, result: OpenAIModerationResult): boolean;
-  /** Custom endpoint to use instead of `https://api.openai.com/v1/moderations`. */
-  endpoint?: string;
   /** Custom fetch implementation. */
   fetch?: typeof fetch;
-  /** Which event kinds to apply the policy to. */
-  kinds?: number[];
-  /** OpenAI API key for making the requests. */
-  apiKey: string;
 }
 
 /**
@@ -75,7 +86,7 @@ interface OpenAIPolicyOpts {
  * ```
  */
 export class OpenAIPolicy implements NPolicy {
-  constructor(private opts: OpenAIPolicyOpts) {}
+  constructor(private opts: OpenAIPolicyOpts) { }
 
   async call(event: NostrEvent, signal?: AbortSignal): Promise<NostrRelayOK> {
     const {
