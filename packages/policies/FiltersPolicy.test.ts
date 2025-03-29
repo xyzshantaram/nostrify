@@ -9,6 +9,6 @@ Deno.test('FiltersPolicy', async () => {
     generateSecretKey(),
   );
 
-  assertEquals((await new FiltersPolicy([{ kinds: [1] }]).call(event))[2], true);
-  assertEquals((await new FiltersPolicy([{ kinds: [1], authors: [] }]).call(event))[2], false);
+  assertEquals((await new FiltersPolicy({ filters: [{ kinds: [1] }] }).call(event))[2], true);
+  assertEquals((await new FiltersPolicy({ filters: [{ kinds: [1], authors: [] }] }).call(event))[2], false);
 });
