@@ -10,8 +10,8 @@ Deno.test("zodSchemaToFields - basic types", () => {
 
     const result = zodSchemaToFields(schema);
     assertEquals(result, {
-        name: "string",
-        age: "number",
+        name: { type: "string" },
+        age: { type: "number" },
     });
 });
 
@@ -23,8 +23,8 @@ Deno.test("zodSchemaToFields - array types", () => {
 
     const result = zodSchemaToFields(schema);
     assertEquals(result, {
-        tags: "multi_string",
-        scores: "multi_number",
+        tags: { type: "multi_string" },
+        scores: { type: "multi_number" },
     });
 });
 
@@ -36,8 +36,8 @@ Deno.test("zodSchemaToFields - special-case NIP-01 filters", () => {
 
     const result = zodSchemaToFields(schema);
     assertEquals(result, {
-        filters: "multi_string",
-        keywords: "multi_string",
+        filters: { type: "multi_string" },
+        keywords: { type: "multi_string" },
     });
 });
 
@@ -45,13 +45,13 @@ Deno.test("zodSchemaToFields - mixed types", () => {
     const schema = z.object({
         id: z.string(),
         values: z.array(z.number()),
-        flags: z.array(z.string()),
+        flags: z.array(z.string()).describe("Test description"),
     });
 
     const result = zodSchemaToFields(schema);
     assertEquals(result, {
-        id: "string",
-        values: "multi_number",
-        flags: "multi_string",
+        id: { type: "string" },
+        values: { type: "multi_number" },
+        flags: { type: "multi_string", description: "Test description" },
     });
 });
