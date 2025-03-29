@@ -1,5 +1,5 @@
 import { NostrEvent, NostrRelayOK, NPolicy } from '@nostrify/types';
-import z from 'zod';
+import { z } from 'zod';
 
 export const AntiDuplicationPolicyOptsSchema = z.object({
   /** Time in ms until a message with this content may be posted again. Default: `60000` (1 minute). */
