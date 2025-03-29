@@ -37,10 +37,13 @@ export class PolicyRegistry {
 
   policies: Record<string, PolicyItem> = {
     'AntiDuplicationPolicy': {
-      instantiate: async (params) => {
+      instantiate: (params) => {
         const parsed = AntiDuplicationPolicyOptsSchema.parse(params);
+        if (!this.opts.antiDuplicationPolicyStore) {
+          throw new Error('AntiDuplicationPolicy: tried to instantiate store but no store supplied!');
+        }
         return new AntiDuplicationPolicy({
-          kv: this.opts.antiDuplicationPolicyStore || await Deno.openKv(),
+          kv: this.opts.antiDuplicationPolicyStore,
           ...parsed,
         });
       },
