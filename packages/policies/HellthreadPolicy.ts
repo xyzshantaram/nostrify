@@ -12,7 +12,7 @@ export const HellthreadPolicyOptsSchema = z.object({
 /** Policy options for `HellthreadPolicy`. */
 export interface HellthreadPolicyOpts extends Partial<z.TypeOf<typeof HellthreadPolicyOptsSchema>> { }
 
-/** Basic policy to demonstrate how policies work. Accepts all events. */
+/** Policy to prevent "hellthreads" - notes that tag hundreds of people to cause a nuisance and server load. */
 export class HellthreadPolicy implements NPolicy {
   constructor(private opts: HellthreadPolicyOpts = {}) { }
 
