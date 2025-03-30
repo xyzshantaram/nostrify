@@ -21,7 +21,7 @@ import { FieldItem, zodSchemaToFields } from './utils.ts';
 import { NPolicy, NStore } from '@nostrify/types';
 
 export interface PolicyItem {
-  instantiate: (params: Record<string, any>) => NPolicy | Promise<NPolicy>;
+  instantiate: (params: Record<string, any>) => NPolicy;
   name: string;
   parameters: Record<string, FieldItem>;
   description: string;
@@ -33,7 +33,7 @@ export interface PolicyRegistryOpts {
 }
 
 export class PolicyRegistry {
-  constructor(private opts: PolicyRegistryOpts) {}
+  constructor(private opts: PolicyRegistryOpts) { }
 
   available: Record<string, PolicyItem> = {
     'AntiDuplicationPolicy': {
