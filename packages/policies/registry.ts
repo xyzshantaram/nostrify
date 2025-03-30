@@ -33,7 +33,7 @@ export interface PolicyRegistryOpts {
 }
 
 export class PolicyRegistry {
-  constructor(private opts: PolicyRegistryOpts) { }
+  constructor(private opts: PolicyRegistryOpts) {}
 
   available: Record<string, PolicyItem> = {
     'AntiDuplicationPolicy': {
@@ -163,6 +163,7 @@ export class PolicyRegistry {
       instantiate: (params) => {
         const parsed = ReplyBotPolicyOptsSchema.parse(params);
         return new ReplyBotPolicy({
+          store: this.opts.store,
           ...parsed,
         });
       },
