@@ -28,12 +28,19 @@ function unwrapZodType(field: z.ZodTypeAny): UnwrappedZodType {
     field = field._def.innerType;
   }
 
-  const ret: UnwrappedZodType = { baseType: field, optional, defaultValue };
-  if (!optional) delete ret.optional;
-  if (typeof defaultValue === 'string' && defaultValue.length === 0) delete ret.defaultValue;
-  if (typeof defaultValue === 'object' && Object.keys(defaultValue).length === 0) delete ret.defaultValue;
-  if (Array.isArray(defaultValue) && defaultValue.length === 0) delete ret.defaultValue;
-  return ret;
+  const result: UnwrappedZodType = { baseType: field };
+
+  if (optional) result.optional = true;
+  if (typeof defaultValue !== "undefined") {
+    if (typeof defaultValue === 'string' && defaultValue.length > 0 ||
+      (typeof defaultValue === 'number') ||
+      (typeof defaultValue === 'object' && Object.keys(defaultValue).length > 0) ||
+      (Array.isArray(defaultValue) && defaultValue.length > 0)) {
+      result.defaultValue = defaultValue;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -53,7 +60,9 @@ export function zodSchemaToFields(schema: z.ZodObject<any>): Record<string, Fiel
 
   for (const [key, field] of Object.entries(schema.shape) as [string, z.ZodTypeAny][]) {
     const { baseType, optional, defaultValue } = unwrapZodType(field);
-    result[key] = { type: 'unknown', optional, default: defaultValue };
+    result[key] = { type: 'unknown' };
+    if (optional) result[key].optional = optional;
+    if (defaultValue) result[key].default = defaultValue;
 
     if (key === 'filters') {
       result[key].type = 'multi_string';
