@@ -3,8 +3,6 @@ import { z } from 'zod';
 
 /** Policy options for `ReplyBotPolicy`. */
 export const ReplyBotPolicyOptsSchema = z.object({
-  /** The store to use for fetching events. */
-  store: z.custom<NStore>(),
   /** The minimum time in seconds between two posts. Default: `1`. */
   threshold: z.number()
     .default(1)
@@ -17,12 +15,13 @@ export const ReplyBotPolicyOptsSchema = z.object({
 
 /** Policy options for `ReplyBotPolicy`. */
 export interface ReplyBotPolicyOpts extends Partial<z.TypeOf<typeof ReplyBotPolicyOptsSchema>> {
+  /** The store to use for fetching events. */
   store: NStore;
 }
 
 /** Block events that reply too quickly to another event. */
 export class ReplyBotPolicy implements NPolicy {
-  constructor(private opts: ReplyBotPolicyOpts) {}
+  constructor(private opts: ReplyBotPolicyOpts) { }
 
   async call(event: NostrEvent, signal?: AbortSignal): Promise<NostrRelayOK> {
     const { store, threshold = 1, kinds = [1] } = this.opts;
