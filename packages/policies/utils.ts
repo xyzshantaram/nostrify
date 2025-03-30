@@ -9,7 +9,11 @@ export interface FieldItem {
   default?: any;
 }
 
-interface UnwrappedZodType { baseType: z.ZodTypeAny; optional?: boolean; defaultValue?: any };
+interface UnwrappedZodType {
+  baseType: z.ZodTypeAny;
+  optional?: boolean;
+  defaultValue?: any;
+}
 
 /**
  * Extracts the base type from wrapped Zod types like ZodOptional and ZodDefault.
@@ -26,8 +30,8 @@ function unwrapZodType(field: z.ZodTypeAny): UnwrappedZodType {
 
   const ret: UnwrappedZodType = { baseType: field, optional, defaultValue };
   if (!optional) delete ret.optional;
-  if (typeof defaultValue === "string" && defaultValue.length === 0) delete ret.defaultValue;
-  if (typeof defaultValue === "object" && Object.keys(defaultValue).length === 0) delete ret.defaultValue;
+  if (typeof defaultValue === 'string' && defaultValue.length === 0) delete ret.defaultValue;
+  if (typeof defaultValue === 'object' && Object.keys(defaultValue).length === 0) delete ret.defaultValue;
   if (defaultValue instanceof Array && defaultValue.length === 0) delete ret.defaultValue;
   return ret;
 }

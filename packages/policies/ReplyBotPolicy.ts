@@ -21,7 +21,7 @@ export interface ReplyBotPolicyOpts extends Partial<z.TypeOf<typeof ReplyBotPoli
 
 /** Block events that reply too quickly to another event. */
 export class ReplyBotPolicy implements NPolicy {
-  constructor(private opts: ReplyBotPolicyOpts) { }
+  constructor(private opts: ReplyBotPolicyOpts) {}
 
   async call(event: NostrEvent, signal?: AbortSignal): Promise<NostrRelayOK> {
     const { store, threshold = 1, kinds = [1] } = this.opts;
