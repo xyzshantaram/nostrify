@@ -5,6 +5,31 @@ type FieldType = 'string' | 'multi_string' | 'number' | 'multi_number' | 'boolea
 export interface FieldItem {
   type: FieldType;
   description?: string;
+  optional?: boolean;
+  default?: any;
+}
+
+interface UnwrappedZodType { baseType: z.ZodTypeAny; optional?: boolean; defaultValue?: any };
+
+/**
+ * Extracts the base type from wrapped Zod types like ZodOptional and ZodDefault.
+ */
+function unwrapZodType(field: z.ZodTypeAny): UnwrappedZodType {
+  let optional = false;
+  let defaultValue: any = undefined;
+
+  while (field instanceof z.ZodOptional || field instanceof z.ZodDefault) {
+    if (field instanceof z.ZodOptional) optional = true;
+    if (field instanceof z.ZodDefault) defaultValue = field._def.defaultValue();
+    field = field._def.innerType;
+  }
+
+  const ret: UnwrappedZodType = { baseType: field, optional, defaultValue };
+  if (!optional) delete ret.optional;
+  if (typeof defaultValue === "string" && defaultValue.length === 0) delete ret.defaultValue;
+  if (typeof defaultValue === "object" && Object.keys(defaultValue).length === 0) delete ret.defaultValue;
+  if (defaultValue instanceof Array && defaultValue.length === 0) delete ret.defaultValue;
+  return ret;
 }
 
 /**
@@ -17,22 +42,22 @@ export function zodSchemaToFields(schema: z.ZodObject<any>): Record<string, Fiel
   const result: Record<string, FieldItem> = {};
 
   for (const [key, field] of Object.entries(schema.shape) as [string, z.ZodTypeAny][]) {
-    result[key] = { type: 'unknown' };
+    const { baseType, optional, defaultValue } = unwrapZodType(field);
+    result[key] = { type: 'unknown', optional, default: defaultValue };
 
     if (key === 'filters') {
       result[key].type = 'multi_string';
-    } else if (field instanceof z.ZodArray) {
-      // zod version is pinned and there is precedent for parsing _def:
-      // https://github.com/colinhacks/zod/discussions/1953
-      const elementType = field._def.type._def.typeName;
+    } else if (baseType instanceof z.ZodArray) {
+      const elementType = unwrapZodType(baseType._def.type).baseType._def.typeName;
       if (elementType === 'ZodNumber') result[key].type = 'multi_number';
       else result[key].type = 'multi_string';
-    } else if (field instanceof z.ZodNumber) result[key].type = 'number';
-    else if (field instanceof z.ZodBoolean) result[key].type = 'boolean';
-    else if (field instanceof z.ZodString) result[key].type = 'string';
+    } else if (baseType instanceof z.ZodNumber) result[key].type = 'number';
+    else if (baseType instanceof z.ZodBoolean) result[key].type = 'boolean';
+    else if (baseType instanceof z.ZodString) result[key].type = 'string';
 
-    // doing it this way because otherwise each object ends up with a description: undefined on it
-    if (field.description) result[key].description = field.description;
+    if (result[key].type === 'unknown') console.log(key, baseType);
+
+    if (baseType.description) result[key].description = baseType.description;
   }
 
   return result;
