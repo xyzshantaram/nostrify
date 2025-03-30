@@ -33,9 +33,9 @@ export interface PolicyRegistryOpts {
 }
 
 export class PolicyRegistry {
-  constructor(private opts: PolicyRegistryOpts) {}
+  constructor(private opts: PolicyRegistryOpts) { }
 
-  policies: Record<string, PolicyItem> = {
+  available: Record<string, PolicyItem> = {
     'AntiDuplicationPolicy': {
       instantiate: (params) => {
         const parsed = AntiDuplicationPolicyOptsSchema.parse(params);
