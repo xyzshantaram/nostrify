@@ -55,3 +55,51 @@ Deno.test('zodSchemaToFields - mixed types', () => {
     flags: { type: 'multi_string', description: 'Test description' },
   });
 });
+
+Deno.test('zodSchemaToFields - optional fields', () => {
+  const schema = z.object({
+    name: z.string().optional(),
+    age: z.number().optional(),
+  });
+
+  const result = zodSchemaToFields(schema);
+  assertEquals(result, {
+    name: { type: 'string', optional: true },
+    age: { type: 'number', optional: true },
+  });
+});
+
+Deno.test('zodSchemaToFields - default values', () => {
+  const schema = z.object({
+    name: z.string().default('John Doe'),
+    age: z.number().default(30),
+  });
+
+  const result = zodSchemaToFields(schema);
+  assertEquals(result, {
+    name: { type: 'string', default: 'John Doe' },
+    age: { type: 'number', default: 30 },
+  });
+});
+
+Deno.test('zodSchemaToFields - boolean fields', () => {
+  const schema = z.object({
+    active: z.boolean(),
+  });
+
+  const result = zodSchemaToFields(schema);
+  assertEquals(result, {
+    active: { type: 'boolean' },
+  });
+});
+
+Deno.test('zodSchemaToFields - invalid schema', () => {
+  const schema = z.object({
+    invalid: z.any(),
+  });
+
+  const result = zodSchemaToFields(schema);
+  assertEquals(result, {
+    invalid: { type: 'unknown' },
+  });
+});
