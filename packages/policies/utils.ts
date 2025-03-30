@@ -32,14 +32,20 @@ function unwrapZodType(field: z.ZodTypeAny): UnwrappedZodType {
   if (!optional) delete ret.optional;
   if (typeof defaultValue === 'string' && defaultValue.length === 0) delete ret.defaultValue;
   if (typeof defaultValue === 'object' && Object.keys(defaultValue).length === 0) delete ret.defaultValue;
-  if (defaultValue instanceof Array && defaultValue.length === 0) delete ret.defaultValue;
+  if (Array.isArray(defaultValue) && defaultValue.length === 0) delete ret.defaultValue;
   return ret;
 }
 
 /**
  * Serializes a Zod schema into a record of field types. NOT meant to be used
  * as a general-purpose serializer - this is specifically for generating policy
- * parameter descriptions!
+ * parameter descriptions! This function also parses internal Zod properties,
+ * but there is precedent for this: 
+ * https://github.com/colinhacks/zod/discussions/1953 
+ * 
+ * With version pinning and the Zod maintainers' knowledge of this kind of 
+ * usage, it should be fine for it to be this way.
+ * 
  * Special-cases NIP-01 filters as `multi_string`.
  */
 export function zodSchemaToFields(schema: z.ZodObject<any>): Record<string, FieldItem> {
@@ -58,8 +64,6 @@ export function zodSchemaToFields(schema: z.ZodObject<any>): Record<string, Fiel
     } else if (baseType instanceof z.ZodNumber) result[key].type = 'number';
     else if (baseType instanceof z.ZodBoolean) result[key].type = 'boolean';
     else if (baseType instanceof z.ZodString) result[key].type = 'string';
-
-    if (result[key].type === 'unknown') console.log(key, baseType);
 
     if (baseType.description) result[key].description = baseType.description;
   }
