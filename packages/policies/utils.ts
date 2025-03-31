@@ -13,6 +13,7 @@ interface UnwrappedZodType {
   baseType: z.ZodTypeAny;
   optional?: boolean;
   defaultValue?: any;
+  description?: string;
 }
 
 /**
@@ -21,10 +22,15 @@ interface UnwrappedZodType {
 function unwrapZodType(field: z.ZodTypeAny): UnwrappedZodType {
   let optional = false;
   let defaultValue: any = undefined;
+  let description: string | undefined = undefined;
+
+  description = field.description;
 
   while (field instanceof z.ZodOptional || field instanceof z.ZodDefault) {
     if (field instanceof z.ZodOptional) optional = true;
     if (field instanceof z.ZodDefault) defaultValue = field._def.defaultValue();
+    if (!description) description = field.description;
+
     field = field._def.innerType;
   }
 
@@ -41,7 +47,7 @@ function unwrapZodType(field: z.ZodTypeAny): UnwrappedZodType {
       result.defaultValue = defaultValue;
     }
   }
-
+  if (description) result.description = description;
   return result;
 }
 
@@ -61,10 +67,11 @@ export function zodSchemaToFields(schema: z.ZodObject<any>): Record<string, Fiel
   const result: Record<string, FieldItem> = {};
 
   for (const [key, field] of Object.entries(schema.shape) as [string, z.ZodTypeAny][]) {
-    const { baseType, optional, defaultValue } = unwrapZodType(field);
+    const { baseType, optional, defaultValue, description } = unwrapZodType(field);
     result[key] = { type: 'unknown' };
     if (optional) result[key].optional = optional;
     if (defaultValue) result[key].default = defaultValue;
+    if (description) result[key].description = description;
 
     if (key === 'filters') {
       result[key].type = 'multi_string';
@@ -76,7 +83,7 @@ export function zodSchemaToFields(schema: z.ZodObject<any>): Record<string, Fiel
     else if (baseType instanceof z.ZodBoolean) result[key].type = 'boolean';
     else if (baseType instanceof z.ZodString) result[key].type = 'string';
 
-    if (baseType.description) result[key].description = baseType.description;
+    if (baseType.description && !result[key].description) result[key].description = baseType.description;
   }
 
   return result;
