@@ -91,3 +91,143 @@ const event = await signer.signEvent({
 2. **Interoperability**: Works alongside other Nostr tools like nostr-tools and NDK
 3. **Gradual Adoption**: Can be integrated piece by piece into existing applications
 4. **Type Safety**: Comprehensive TypeScript types for developer experience
+
+## React Native Client Development
+
+For building React Native clients, refer to the following documentation:
+
+### Documentation Structure
+Located in `/docs`:
+- `README.md` - Overview and getting started
+- `concepts/core-concepts.md` - Nostr concepts and architecture
+- `client-development/scenarios/` - Implementation scenarios
+- `REFERENCES.md` - Cross-reference index
+
+### Scenario Implementation Guides
+
+1. **Social Feed Implementation**
+   - Reference: `/docs/client-development/scenarios/social-feed.md`
+   ```typescript
+   // Feed provider setup
+   const FeedProvider: FC = ({ children }) => {
+     // See social-feed.md#1-feed-provider
+   };
+   ```
+
+2. **Direct Messaging**
+   - Reference: `/docs/client-development/scenarios/direct-messaging.md`
+   ```typescript
+   // Message encryption
+   const MessageProvider: FC = ({ children }) => {
+     // See direct-messaging.md#1-message-provider
+   };
+   ```
+
+3. **Content Creation**
+   - Reference: `/docs/client-development/scenarios/content-creation.md`
+   ```typescript
+   // Media handling
+   const ContentProvider: FC = ({ children }) => {
+     // See content-creation.md#1-content-creation-provider
+   };
+   ```
+
+4. **Profile Management**
+   - Reference: `/docs/client-development/scenarios/profile-management.md`
+   ```typescript
+   // Profile provider setup
+   const ProfileProvider: FC = ({ children }) => {
+     // See profile-management.md#1-profile-provider
+   };
+   ```
+
+### Common Implementation Patterns
+
+1. **State Management**
+   ```typescript
+   // Context setup
+   const YourContext = createContext<ContextType | undefined>(undefined);
+   const YourProvider: FC = ({ children }) => {
+     const nostr = useNostr();
+     // See relevant scenario docs for specific implementations
+   };
+   ```
+
+2. **Error Handling**
+   ```typescript
+   // Standard error handler
+   const handleError = async (error: Error) => {
+     // See core-concepts.md#data-validation
+   };
+   ```
+
+3. **Performance Optimization**
+   ```typescript
+   // Caching implementation
+   const useCache = () => {
+     // See social-feed.md#performance-considerations
+   };
+   ```
+
+### Security Best Practices
+
+1. **Key Management**
+   - Follow patterns in `profile-management.md#security-considerations`
+   - Implement secure storage
+   - Use authentication for sensitive operations
+
+2. **Data Encryption**
+   - See `direct-messaging.md#2-encryption-utilities`
+   - Follow NIP-04 standards
+   - Implement proper key handling
+
+3. **Input Validation**
+   - Use schema validation from core package
+   - Implement content filtering
+   - Follow security patterns in documentation
+
+### Navigation Patterns
+
+```typescript
+// Standard navigation setup
+const Stack = createStackNavigator();
+const Navigation = () => {
+  // See scenario docs for specific implementations
+};
+```
+
+### Component Guidelines
+
+1. **Reusable Components**
+   - Follow patterns in scenario documentation
+   - Implement proper type safety
+   - Use consistent styling
+
+2. **Provider Integration**
+   - Wrap components appropriately
+   - Follow context patterns
+   - Handle proper cleanup
+
+### Testing Recommendations
+
+1. **Component Testing**
+   - Test user interactions
+   - Validate state changes
+   - Mock Nostr events appropriately
+
+2. **Integration Testing**
+   - Test provider integration
+   - Validate event flow
+   - Check error handling
+
+### Performance Guidelines
+
+1. **Optimization Techniques**
+   - Implement proper caching
+   - Use virtualization for lists
+   - Follow lazy loading patterns
+
+2. **Resource Management**
+   - Handle cleanup properly
+   - Manage subscriptions
+   - Monitor memory usage
