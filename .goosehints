@@ -1,13 +1,41 @@
 # Nostrify
 
-Nostrify is a comprehensive Nostr framework for web browsers and Deno, designed to be modular, interoperable, and easy to adopt.
+Nostrify is a comprehensive Nostr framework for web browsers, React Native, and Deno, designed to be modular, interoperable, and easy to adopt.
 
 ## Project Structure
 
-- **Technology Stack**: Deno, TypeScript
+- **Technology Stack**: 
+  - Deno for core framework and tooling
+  - TypeScript for type safety
+  - React Native for mobile apps
+  - React for web apps
 - **Package Manager**: Uses Deno workspaces
 - **Configuration**: `deno.json` defines workspaces, tasks, and imports
+- **Examples**: 
+  - Web implementation: `packages/react/example/`
+  - React Native starter: Use `create-nostr-app` template
 - **License**: MIT
+
+## Example Applications
+
+### Web Example (packages/react/example/)
+Complete implementation showing:
+- Social feed integration
+- User authentication
+- Profile management
+- Content creation
+
+### React Native Development
+Use our React Native template to start building:
+```bash
+deno run -A create-nostr-app init my-nostr-app --template react-native
+```
+
+Features include:
+- Native UI components optimized for mobile
+- Efficient state management 
+- Offline capability
+- Push notifications support
 
 ## Key Packages
 
