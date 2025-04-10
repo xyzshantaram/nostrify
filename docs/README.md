@@ -1,7 +1,7 @@
 # Nostrify Documentation
 
 ## Overview
-Nostrify is a comprehensive Nostr framework for web browsers and Deno, designed to be modular, interoperable, and easy to adopt. This documentation will help you understand the framework and build Nostr clients using React Native.
+Nostrify is a comprehensive Nostr framework for web browsers and Deno, designed to be modular, interoperable, and easy to adopt. This documentation will help you understand the framework and build Nostr clients using React.
 
 ## Documentation Structure
 
@@ -23,7 +23,7 @@ Nostrify is a comprehensive Nostr framework for web browsers and Deno, designed 
 - Security considerations
 
 ### Client Development
-- React Native implementation
+- React implementation
 - State management
 - User authentication
 - Event handling
