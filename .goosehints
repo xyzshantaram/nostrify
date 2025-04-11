@@ -2,6 +2,49 @@
 
 Nostrify is a comprehensive Nostr framework for web browsers and Deno, designed to be modular, interoperable, and easy to adopt.
 
+## AI Agent Integration Notes
+
+### Event Validation Requirements
+When creating Nostr events, ensure:
+- kind: must be number type
+- created_at: must be number type (Unix timestamp)
+- content: must be string type
+- pubkey: must be 64-character hex string
+- tags: must be array of string arrays
+- Don't include id/sig fields before finalizeEvent
+
+### Common Pitfalls
+1. Event Creation:
+   ```typescript
+   // If you see: "can't serialize event with wrong or missing properties"
+   // Ensure this structure:
+   const eventBase = {
+     kind: number,        // Must be number type
+     created_at: number,  // Must be Unix timestamp
+     content: string,     // Must be string type
+     pubkey: string,     // Must be 64-char hex
+     tags: string[][]    // Array of string arrays
+   };
+   ```
+
+2. Validation Patterns:
+   - Always use String() for content
+   - Convert non-string tag values to strings
+   - Validate pubkey format (64-char hex)
+   - Use finalizeEvent for signing
+
+3. Error Recognition:
+   - "can't serialize event" → check types
+   - "invalid pubkey format" → verify 64-char hex
+   - "hmacSha256Sync not set" → use nostr-tools signing
+   - "Buffer not defined" → use TextEncoder in browser
+
+### Documentation References
+For detailed guides, check:
+- /docs/client-development/README.md
+- /docs/client-development/guides/troubleshooting.md
+- /docs/client-development/guides/architecture.md
+
 ## Project Structure
 
 - **Technology Stack**: 
