@@ -1,0 +1,22 @@
+{
+  "name": "@nostrify/solidjs",
+  "version": "0.0.1-alpha.1",
+  "tasks": {
+    "dev": "deno run -A --node-modules-dir npm:vite example",
+    "build": "deno run -A --node-modules-dir npm:vite build example"
+  },
+  "exports": {
+    ".": "./mod.ts",
+    "./test": "./test-helpers.ts"
+  },
+  "imports": {
+    "solid-js": "npm:solid-js@^1.8.15",
+    "solid-js/web": "npm:solid-js@^1.8.15/web",
+    "solid-js/store": "npm:solid-js@^1.8.15/store"
+  },
+  "compilerOptions": {
+    "lib": ["deno.ns", "dom"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "solid-js"
+  }
+}
