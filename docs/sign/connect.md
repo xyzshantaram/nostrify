@@ -67,6 +67,19 @@ await signer.ping();
 
 This method will return `"pong"`, or throw an error if the remote signer is not connected.
 
+## Logout
+
+When the user logs out, you can send a `logout` command to inform the remote signer that the session is no longer needed.
+
+```ts
+await signer.logout();
+```
+
+This method will return `"ack"`. The remote signer should then remove the session and reject any further requests from this client.
+
+> [!IMPORTANT]
+> The `logout` request is a courtesy hint and is not a security boundary. Your application MUST still delete its locally stored signer key on logout, regardless of whether the request was acknowledged.
+
 ## Encryption
 
 Nostr Connect [still uses NIP-04](https://github.com/nostr-protocol/nips/issues/1095) while the ecosystem transitions to NIP-44.

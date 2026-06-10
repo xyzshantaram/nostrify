@@ -101,6 +101,16 @@ export class NConnectSigner implements NostrSigner {
     return this.cmd('ping', []);
   }
 
+  /**
+   * Send a `logout` command to the signer to end the session. It should respond with `ack`.
+   *
+   * The `logout` request is a courtesy hint and is not a security boundary: the client MUST still
+   * delete its locally stored signer key on logout regardless of whether the request was acknowledged.
+   */
+  async logout(): Promise<string> {
+    return this.cmd('logout', []);
+  }
+
   /** High-level RPC method. Returns the string result, or throws on error. */
   private async cmd(method: string, params: string[]): Promise<string> {
     const signal = typeof this.timeout === 'number' ? AbortSignal.timeout(this.timeout) : undefined;

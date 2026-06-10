@@ -63,6 +63,55 @@ await test("NConnectSigner.signEvent with nip04 encryption", async () => {
   deepStrictEqual(relay.subs.size, 0); // cleanup
 });
 
+await test("NConnectSigner.logout", async () => {
+  const relay = new MockRelay();
+  const remote = new NSecSigner(generateSecretKey());
+  const pubkey = await remote.getPublicKey();
+
+  const connect = new NConnectSigner({
+    relay,
+    pubkey,
+    signer: new NSecSigner(generateSecretKey()),
+    encryption: "nip44",
+  });
+
+  const req = relay.req([{ kinds: [24133], "#p": [pubkey] }]);
+
+  const promise = connect.logout();
+
+  for await (const msg of req) {
+    if (msg[0] === "EVENT") {
+      const event = msg[2];
+      const decrypted = await remote.nip44!.decrypt(
+        event.pubkey,
+        event.content,
+      );
+      const request = n.json().pipe(n.connectRequest()).parse(decrypted);
+      deepStrictEqual(request.method, "logout");
+      deepStrictEqual(request.params, []);
+      const response: NostrConnectResponse = {
+        id: request.id,
+        result: "ack",
+      };
+      await relay.event(
+        await remote.signEvent({
+          kind: 24133,
+          content: await remote.nip44!.encrypt(
+            event.pubkey,
+            JSON.stringify(response),
+          ),
+          tags: [["p", event.pubkey]],
+          created_at: Math.floor(Date.now() / 1000),
+        }),
+      );
+      break;
+    }
+  }
+
+  deepStrictEqual(await promise, "ack");
+  deepStrictEqual(relay.subs.size, 0); // cleanup
+});
+
 await test("NConnectSigner.signEvent with nip44 encryption", async () => {
   const relay = new MockRelay();
   const remote = new NSecSigner(generateSecretKey());
